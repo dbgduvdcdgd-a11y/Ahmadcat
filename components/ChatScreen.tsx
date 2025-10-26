@@ -439,7 +439,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   }
 
   return (
-    <div className="flex h-screen bg-slate-800 antialiased text-slate-200">
+    <div className="flex h-full bg-slate-800 antialiased text-slate-200">
         <div className="flex flex-col h-full w-full">
 
             {/* Messages */}
