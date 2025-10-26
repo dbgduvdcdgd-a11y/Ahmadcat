@@ -54,3 +54,53 @@ export const getUsers = (): string[] => {
     const users = getStoredUsers();
     return Object.keys(users);
 };
+
+export const changePassword = (username: string, oldPassword: string, newPassword: string): { success: boolean, message: string } => {
+    if (newPassword.length < 6) {
+        return { success: false, message: 'يجب أن تكون كلمة المرور الجديدة 6 أحرف على الأقل.' };
+    }
+    const users = getStoredUsers();
+    const user = users[username];
+    if (!user || user.password !== oldPassword) {
+        return { success: false, message: 'كلمة المرور الحالية غير صحيحة.' };
+    }
+    users[username].password = newPassword;
+    setStoredUsers(users);
+    return { success: true, message: 'تم تغيير كلمة المرور بنجاح.' };
+};
+
+export const changeUsername = (oldUsername: string, newUsername: string, password: string): { success: boolean, message: string } => {
+    const trimmedNewUsername = newUsername.trim();
+    if (trimmedNewUsername.length < 3) {
+        return { success: false, message: 'يجب أن يكون اسم المستخدم الجديد 3 أحرف على الأقل.' };
+    }
+    if (trimmedNewUsername === 'System') {
+        return { success: false, message: 'اسم المستخدم غير صالح.' };
+    }
+    const users = getStoredUsers();
+    const user = users[oldUsername];
+    if (!user || user.password !== password) {
+        return { success: false, message: 'كلمة المرور غير صحيحة.' };
+    }
+    if (users[trimmedNewUsername]) {
+        return { success: false, message: 'اسم المستخدم الجديد موجود بالفعل.' };
+    }
+    if (oldUsername === 'admin' && trimmedNewUsername !== 'admin') {
+         return { success: false, message: 'لا يمكن تغيير اسم مستخدم المسؤول.' };
+    }
+
+    users[trimmedNewUsername] = { password: user.password };
+    delete users[oldUsername];
+    setStoredUsers(users);
+    
+    return { success: true, message: 'تم تغيير اسم المستخدم بنجاح.' };
+};
+
+
+export const getUsersWithPasswords = (): Array<{ username: string, password: string }> => {
+    const users = getStoredUsers();
+    return Object.entries(users).map(([username, data]) => ({
+        username,
+        password: data.password,
+    }));
+};

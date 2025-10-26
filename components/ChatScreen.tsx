@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Message, MessageFile } from '../types';
 import * as authService from '../services/authService';
 import * as profileService from '../services/profileService';
+import ProfileSettingsPanel from './ProfileSettingsPanel';
 
 
 const CHAT_MESSAGES_KEY = 'group-chat-messages';
@@ -25,12 +26,12 @@ const nameToColor = (name: string): string => {
 const UserManagementPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [newUsername, setNewUsername] = useState('');
     const [newPassword, setNewPassword] = useState('');
-    const [users, setUsers] = useState<string[]>([]);
+    const [users, setUsers] = useState<Array<{ username: string; password: string }>>([]);
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
     const loadUsers = useCallback(() => {
-        setUsers(authService.getUsers());
+        setUsers(authService.getUsersWithPasswords());
     }, []);
 
     useEffect(() => {
@@ -87,9 +88,26 @@ const UserManagementPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 
                     <div className="mt-6">
                         <h4 className="text-lg font-semibold text-white mb-3">المستخدمون المسجلون ({users.length})</h4>
-                        <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                            {users.map(user => <li key={user} className="bg-slate-700 p-2 rounded-md text-sm truncate">{user}</li>)}
-                        </ul>
+                         <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                            {users.map(({ username, password }) => (
+                                <div key={username} className="bg-slate-700 p-2 rounded-md text-sm flex justify-between items-center gap-2">
+                                    <span className="font-semibold truncate flex-1" title={username}>{username}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">كلمة المرور:</span>
+                                        <span className="font-mono text-indigo-300 truncate">{password}</span>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(password)}
+                                            title="نسخ كلمة المرور"
+                                            className="p-1 text-slate-400 hover:text-white transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -133,13 +151,13 @@ const MessageContent: React.FC<{ message: Message; onViewMedia: (file: MessageFi
 interface ChatScreenProps {
   username: string;
   onLogout: () => void;
+  onUsernameUpdate: (newUsername: string) => void;
 }
 
-const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
+const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameUpdate }) => {
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const storedMessages = localStorage.getItem(CHAT_MESSAGES_KEY);
-      // FIX: Cast the result of JSON.parse to Message[] to prevent the state from being typed as 'any'.
       return storedMessages ? (JSON.parse(storedMessages) as Message[]) : [];
     } catch {
       return [];
@@ -148,6 +166,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
   const [newMessage, setNewMessage] = useState('');
   const [fileError, setFileError] = useState('');
   const [isUserPanelOpen, setIsUserPanelOpen] = useState(false);
+  const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
   const [viewingMedia, setViewingMedia] = useState<MessageFile | null>(null);
   const [avatar, setAvatar] = useState<string | null>(() => profileService.getProfilePicture(username));
   const [profilePictures, setProfilePictures] = useState<Record<string, string | null>>({});
@@ -165,8 +184,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
   }, [messages]);
 
     useEffect(() => {
-        // FIX: Explicitly type `senders` as `string[]` to correct a type inference issue where `sender` was `unknown`.
-        const senders: string[] = [...new Set(messages.map(m => m.sender))].filter(s => s !== 'System');
+        const senders: string[] = [...new Set<string>(messages.map(m => m.sender))].filter(s => s !== 'System');
         const picsToFetch: Record<string, string | null> = {};
         let needsUpdate = false;
         for (const sender of senders) {
@@ -184,7 +202,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
     const handleStorageChange = (event: StorageEvent) => {
         if (event.key === CHAT_MESSAGES_KEY && event.newValue) {
             try { 
-                // FIX: Cast the result of JSON.parse to Message[] to prevent the state from being typed as 'any'.
                 setMessages(JSON.parse(event.newValue) as Message[]);
             } 
             catch (error) { console.error("Error parsing messages from storage", error); }
@@ -295,10 +312,37 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
     }
   };
 
+  const handleUsernameChangeSuccess = (newUsername: string) => {
+    // 1. Rename profile
+    profileService.renameUserProfile(username, newUsername);
+
+    // 2. Update messages in localStorage
+    const currentMessages: Message[] = JSON.parse(localStorage.getItem(CHAT_MESSAGES_KEY) || '[]');
+    const updatedMessages = currentMessages.map(msg =>
+        msg.sender === username ? { ...msg, sender: newUsername } : msg
+    );
+    
+    // 3. Add a system message about the name change
+    const systemMessage: Message = {
+        id: Date.now().toString(),
+        text: `${username} غير اسمه إلى ${newUsername}`,
+        sender: 'System'
+    };
+    const finalMessages = [...updatedMessages, systemMessage];
+    localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(finalMessages));
+    
+    // 4. Update local and parent state
+    setMessages(finalMessages);
+    onUsernameUpdate(newUsername);
+    
+    // 5. Close the panel
+    setIsProfilePanelOpen(false);
+  };
 
   return (
     <div className="flex flex-col h-screen bg-slate-900">
       {isUserPanelOpen && <UserManagementPanel onClose={() => setIsUserPanelOpen(false)} />}
+      {isProfilePanelOpen && <ProfileSettingsPanel username={username} onClose={() => setIsProfilePanelOpen(false)} onUsernameChangeSuccess={handleUsernameChangeSuccess} />}
       {viewingMedia && (
         <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4" onClick={() => setViewingMedia(null)}>
             <button onClick={() => setViewingMedia(null)} className="absolute top-4 right-4 text-white text-4xl z-10" aria-label="إغلاق">&times;</button>
@@ -315,7 +359,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
       <div className="flex flex-col flex-1 h-full">
         <header className="flex items-center justify-between p-4 bg-slate-800 shadow-md z-10 border-b border-slate-700">
           <div className="flex items-baseline gap-2 sm:gap-3">
-            <h1 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500">عينابوس</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500">الحادي عشر عينابوس</h1>
             <span className="hidden sm:inline text-lg sm:text-xl font-medium text-slate-400">/</span>
             <h2 className="hidden sm:inline text-lg sm:text-xl font-semibold text-white">مجموعة الأصدقاء</h2>
           </div>
@@ -332,6 +376,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
                     <span className="hidden sm:inline">إدارة الحسابات</span>
                 </button>
             )}
+            <button
+              onClick={() => setIsProfilePanelOpen(true)}
+              title="إعدادات الحساب"
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-full transition-colors duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
             <input type="file" ref={avatarInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
             <button
               onClick={() => avatarInputRef.current?.click()}
@@ -399,7 +453,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
                      avatar ? (
                         <img src={avatar} alt={username} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                     ) : (
-                        <div className="w-8 h-8 rounded-full bg-slate-600 flex-shrink-0 flex items-center justify-center font-bold text-white">
+                        <div className={`w-8 h-8 rounded-full ${nameToColor(username)} flex-shrink-0 flex items-center justify-center font-bold text-white`}>
                             {username.charAt(0).toUpperCase()}
                         </div>
                     )

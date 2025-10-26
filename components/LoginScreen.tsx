@@ -22,7 +22,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     <div className="flex items-center justify-center min-h-screen bg-slate-900">
       <div className="w-full max-w-md p-6 sm:p-8 space-y-8 bg-slate-800 rounded-2xl shadow-2xl m-4">
         <div className="text-center">
-          <h2 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500 pb-2">عينابوس</h2>
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500 pb-2">الحادي عشر عينابوس</h2>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-2">تسجيل الدخول إلى الدردشة</h1>
           <p className="mt-3 text-slate-400">أدخل بياناتك للدردشة مع أصدقائك</p>
         </div>

@@ -34,3 +34,17 @@ export const setProfilePicture = (username: string, imageDataUrl: string): void 
     profiles[username] = { avatar: imageDataUrl };
     setStoredProfiles(profiles);
 };
+
+/**
+ * Renames a user's profile key.
+ * @param oldUsername The current username.
+ * @param newUsername The new username.
+ */
+export const renameUserProfile = (oldUsername: string, newUsername: string): void => {
+    const profiles = getStoredProfiles();
+    if (profiles[oldUsername]) {
+        profiles[newUsername] = profiles[oldUsername];
+        delete profiles[oldUsername];
+        setStoredProfiles(profiles);
+    }
+};

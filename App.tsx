@@ -58,11 +58,15 @@ const App: React.FC = () => {
     setUsername('');
     setIsAuthenticated(false);
   }, [username]);
+  
+  const handleUsernameUpdate = useCallback((newUsername: string) => {
+    setUsername(newUsername);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-900 font-sans">
       {isAuthenticated ? (
-        <ChatScreen username={username} onLogout={handleLogout} />
+        <ChatScreen username={username} onLogout={handleLogout} onUsernameUpdate={handleUsernameUpdate} />
       ) : (
         <LoginScreen onLogin={handleLogin} />
       )}
