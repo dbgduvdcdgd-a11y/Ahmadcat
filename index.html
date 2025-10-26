@@ -6,6 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>الحادي عشر عينابوس</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @keyframes highlight-animation {
+        from { background-color: rgba(71, 85, 105, 0.8); } /* Equivalent to Tailwind's slate-700 with opacity */
+        to { background-color: transparent; }
+      }
+      .highlight-message {
+        animation: highlight-animation 1.5s ease-out;
+      }
+    </style>
   <script type="importmap">
 {
   "imports": {

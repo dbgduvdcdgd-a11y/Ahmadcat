@@ -1,6 +1,6 @@
 export interface MessageFile {
     name: string;
-    type: 'image' | 'video';
+    type: 'image' | 'video' | 'audio';
     url: string; // Base64 data URL
 }
 
@@ -9,6 +9,8 @@ export interface Message {
   sender: string;
   text?: string; // Optional text content or caption
   file?: MessageFile;
+  sticker?: string; // URL to a sticker image
+  replyTo?: string; // ID of the message being replied to
 }
 
 export type ChatTarget = { type: 'group' } | { type: 'private'; with: string };
