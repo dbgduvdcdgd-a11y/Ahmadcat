@@ -11,7 +11,6 @@ import StickerPanel from './StickerPanel';
 const CHAT_MESSAGES_KEY = 'group-chat-messages';
 const PRIVATE_CHAT_PREFIX = 'private-chat-';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-const MAX_AVATAR_SIZE = 1 * 1024 * 1024; // 1MB
 const REACTION_EMOJIS = ['😡', '😘', '🔥', '😎'];
 
 const nameToColor = (name: string): string => {
@@ -104,12 +103,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   const [isRecording, setIsRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [popoverMessageId, setPopoverMessageId] = useState<string | null>(null);
+  const [isMainMenuOpen, setIsMainMenuOpen] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getChatKey = useCallback((target: ChatTarget): string => {
@@ -169,14 +168,17 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
 
   // Close popover when clicking away
   useEffect(() => {
-    const closePopover = () => setPopoverMessageId(null);
-    if (popoverMessageId) {
-        document.addEventListener('click', closePopover);
+    const closePopovers = () => {
+        setPopoverMessageId(null);
+        setIsMainMenuOpen(false);
+    }
+    if (popoverMessageId || isMainMenuOpen) {
+        document.addEventListener('click', closePopovers);
     }
     return () => {
-        document.removeEventListener('click', closePopover);
+        document.removeEventListener('click', closePopovers);
     };
-}, [popoverMessageId]);
+}, [popoverMessageId, isMainMenuOpen]);
 
   const addNewMessage = useCallback((message: Message) => {
     try {
@@ -253,28 +255,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     if(fileInputRef.current) {
         fileInputRef.current.value = '';
     }
-  };
-
-  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-       if (file.size > MAX_AVATAR_SIZE) {
-           alert(`حجم الصورة الرمزية كبير جدًا. الحد الأقصى ${MAX_AVATAR_SIZE / 1024 / 1024} ميجابايت.`);
-           return;
-       }
-       if (!file.type.startsWith('image/')) {
-           alert('يرجى تحديد ملف صورة.');
-           return;
-       }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          const url = e.target?.result as string;
-          profileService.setProfilePicture(username, url);
-          setAvatar(url);
-      };
-      reader.readAsDataURL(file);
   };
   
     const handleLogout = async () => {
@@ -458,72 +438,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
       return messages.find(m => m.id === replyToId);
   }
 
-  const getChatTitle = () => {
-      if (currentChat.type === 'group') {
-          return 'مجموعة الأصدقاء';
-      }
-      return `محادثة مع ${currentChat.with}`;
-  };
-
-
   return (
     <div className="flex h-screen bg-slate-800 antialiased text-slate-200">
         <div className="flex flex-col h-full w-full">
 
-            {/* Header */}
-            <header className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0">
-                 <div className="flex items-center gap-3 min-w-0">
-                    <button onClick={() => setIsUserListOpen(true)} className="p-2 rounded-full hover:bg-slate-700 transition-colors flex-shrink-0">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-                        </svg>
-                    </button>
-                    <h2 className="text-lg font-bold truncate">{getChatTitle()}</h2>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                     <button onClick={() => avatarInputRef.current?.click()} className="relative group">
-                         {avatar ? (
-                            <img src={avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border-2 border-slate-600 group-hover:opacity-80 transition-opacity" />
-                         ) : (
-                            <div className={`w-10 h-10 rounded-full ${nameToColor(username)} flex items-center justify-center font-bold text-white text-lg border-2 border-slate-600 group-hover:opacity-80 transition-opacity`}>
-                                {username.charAt(0).toUpperCase()}
-                            </div>
-                         )}
-                         <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                               <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                            </svg>
-                         </div>
-                    </button>
-                     <input
-                        type="file"
-                        ref={avatarInputRef}
-                        onChange={handleAvatarChange}
-                        className="hidden"
-                        accept="image/*"
-                    />
-
-                    <div className="relative group">
-                        <button className="p-2 rounded-full hover:bg-slate-700 transition-colors" id="menu-button" aria-expanded="true" aria-haspopup="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                            </svg>
-                        </button>
-                        <div className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-slate-700 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto" role="menu" aria-orientation="vertical" aria-labelledby="menu-button" tabIndex={-1}>
-                            <div className="py-1" role="none">
-                                <button onClick={() => setIsProfilePanelOpen(true)} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600" role="menuitem" tabIndex={-1}>إعدادات الحساب</button>
-                                {username === 'admin' && <button onClick={() => setIsUserPanelOpen(true)} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600" role="menuitem" tabIndex={-1}>إدارة المستخدمين</button>}
-                                <button onClick={handleLogout} disabled={isLoggingOut} className="text-red-400 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600 disabled:opacity-50" role="menuitem" tabIndex={-1}>
-                                    {isLoggingOut ? 'جاري الخروج...' : 'تسجيل الخروج'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
             {/* Messages */}
-            <main className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => setPopoverMessageId(null)}>
+            <main className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => { setPopoverMessageId(null); setIsMainMenuOpen(false); }}>
                 {messages.map((msg) => (
                     msg.sender === 'System' ? (
                         <div key={msg.id} className="text-center text-sm text-slate-400 py-2">
@@ -625,8 +545,38 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 )}
                 <div className="relative flex items-center gap-2">
                     <div className="relative">
+                         <button onClick={(e) => { e.stopPropagation(); setIsMainMenuOpen(prev => !prev); }} className="p-2 rounded-full hover:bg-slate-700 transition-colors">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                             </svg>
+                         </button>
+                         {isMainMenuOpen && (
+                            <div onClick={e => e.stopPropagation()} className="absolute bottom-full mb-2 right-0 md:left-0 md:right-auto w-56 origin-bottom-right md:origin-bottom-left rounded-md bg-slate-700 shadow-lg ring-1 ring-black ring-opacity-5 z-30">
+                                <div className="py-1">
+                                    <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-600">
+                                        {avatar ? (
+                                            <img src={avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />
+                                        ) : (
+                                            <div className={`w-10 h-10 rounded-full ${nameToColor(username)} flex items-center justify-center font-bold text-white text-lg`}>
+                                                {username.charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                        <span className="font-semibold truncate text-white">{username}</span>
+                                    </div>
+                                    <button onClick={() => { setIsUserListOpen(true); setIsMainMenuOpen(false); }} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600">المحادثات</button>
+                                    <button onClick={() => { setIsProfilePanelOpen(true); setIsMainMenuOpen(false); }} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600">إعدادات الحساب</button>
+                                    {username === 'admin' && <button onClick={() => { setIsUserPanelOpen(true); setIsMainMenuOpen(false); }} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600">إدارة المستخدمين</button>}
+                                    <div className="border-t border-slate-600 my-1"></div>
+                                    <button onClick={() => { handleLogout(); setIsMainMenuOpen(false); }} disabled={isLoggingOut} className="text-red-400 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600 disabled:opacity-50">
+                                        {isLoggingOut ? 'جاري الخروج...' : 'تسجيل الخروج'}
+                                    </button>
+                                </div>
+                            </div>
+                         )}
+                    </div>
+                    <div className="relative">
                         <button 
-                            onClick={() => setIsStickerPanelOpen(prev => !prev)}
+                            onClick={(e) => { e.stopPropagation(); setIsStickerPanelOpen(prev => !prev) }}
                             className="p-2 rounded-full hover:bg-slate-700 transition-colors"
                             aria-label="إرسال ملصق"
                         >
@@ -635,7 +585,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                             </svg>
                         </button>
                         {isStickerPanelOpen && (
-                            <div className="absolute bottom-full mb-2 left-0 z-20">
+                            <div className="absolute bottom-full mb-2 left-0 z-20" onClick={e => e.stopPropagation()}>
                                 <StickerPanel onSelectSticker={handleSendSticker} onClose={() => setIsStickerPanelOpen(false)} />
                             </div>
                         )}
@@ -692,6 +642,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 onClose={() => setIsProfilePanelOpen(false)}
                 onUsernameChangeSuccess={handleProfileUpdate}
                 onAccountDeleted={onLogout}
+                onAvatarUpdate={() => setAvatar(profileService.getProfilePicture(username))}
             />
         )}
         {isUserListOpen && <UserListPanel currentUser={username} onClose={() => setIsUserListOpen(false)} onSelectChat={setCurrentChat} />}

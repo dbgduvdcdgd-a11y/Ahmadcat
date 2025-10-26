@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as authService from '../services/authService';
 import * as profileService from '../services/profileService';
 
@@ -7,9 +7,24 @@ interface ProfileSettingsPanelProps {
     onClose: () => void;
     onUsernameChangeSuccess: (newUsername: string) => void;
     onAccountDeleted: () => void;
+    onAvatarUpdate: () => void;
 }
 
-const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, onClose, onUsernameChangeSuccess, onAccountDeleted }) => {
+const nameToColor = (name: string): string => {
+    let hash = 0;
+    if (name.length === 0) return 'bg-gray-500';
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        hash = hash & hash;
+    }
+    const colors = [
+        'bg-red-500', 'bg-green-500', 'bg-yellow-500', 
+        'bg-purple-500', 'bg-pink-500', 'bg-teal-500', 'bg-orange-500'
+    ];
+    return colors[Math.abs(hash) % colors.length];
+};
+
+const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, onClose, onUsernameChangeSuccess, onAccountDeleted, onAvatarUpdate }) => {
     const [currentPassword, setCurrentPassword] = useState('');
     const [newUsername, setNewUsername] = useState('');
     const [usernameMessage, setUsernameMessage] = useState({ text: '', type: 'success' });
@@ -20,6 +35,37 @@ const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, o
 
     const [deletePassword, setDeletePassword] = useState('');
     const [deleteMessage, setDeleteMessage] = useState({ text: '', type: 'success' });
+    
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+    const [currentAvatar, setCurrentAvatar] = useState(() => profileService.getProfilePicture(username));
+    const MAX_AVATAR_SIZE = 1 * 1024 * 1024; // 1MB
+
+    useEffect(() => {
+        setCurrentAvatar(profileService.getProfilePicture(username));
+    }, [username]);
+
+    const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+       if (file.size > MAX_AVATAR_SIZE) {
+           alert(`حجم الصورة الرمزية كبير جدًا. الحد الأقصى ${MAX_AVATAR_SIZE / 1024 / 1024} ميجابايت.`);
+           return;
+       }
+       if (!file.type.startsWith('image/')) {
+           alert('يرجى تحديد ملف صورة.');
+           return;
+       }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          const url = e.target?.result as string;
+          profileService.setProfilePicture(username, url);
+          setCurrentAvatar(url);
+          onAvatarUpdate();
+      };
+      reader.readAsDataURL(file);
+    };
 
 
     const handleUsernameChange = (e: React.FormEvent) => {
@@ -83,6 +129,32 @@ const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, o
                 </header>
 
                 <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                    {/* Avatar Section */}
+                    <div className="bg-slate-900 p-4 rounded-lg flex flex-col items-center">
+                        <h4 className="text-lg font-semibold text-white mb-3">الصورة الرمزية</h4>
+                        <input
+                            type="file"
+                            ref={avatarInputRef}
+                            onChange={handleAvatarChange}
+                            className="hidden"
+                            accept="image/*"
+                        />
+                        <button onClick={() => avatarInputRef.current?.click()} className="relative group">
+                            {currentAvatar ? (
+                                <img src={currentAvatar} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-4 border-slate-600 group-hover:opacity-80 transition-opacity" />
+                            ) : (
+                                <div className={`w-24 h-24 rounded-full ${nameToColor(username)} flex items-center justify-center font-bold text-white text-4xl border-4 border-slate-600 group-hover:opacity-80 transition-opacity`}>
+                                    {username.charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                            <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                        </button>
+                    </div>
+
                     {/* Change Username Form */}
                     <div className="bg-slate-900 p-4 rounded-lg">
                         <h4 className="text-lg font-semibold text-white mb-3">تغيير اسم المستخدم</h4>
