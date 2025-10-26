@@ -20,15 +20,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-900">
-      <div className="w-full max-w-md p-8 space-y-8 bg-slate-800 rounded-2xl shadow-2xl">
+      <div className="w-full max-w-md p-6 sm:p-8 space-y-8 bg-slate-800 rounded-2xl shadow-2xl m-4">
         <div className="text-center">
-          <h2 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500 pb-2">عينابوس</h2>
-          <h1 className="text-3xl font-bold text-white tracking-tight mt-2">تسجيل الدخول إلى الدردشة</h1>
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500 pb-2">عينابوس</h2>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-2">تسجيل الدخول إلى الدردشة</h1>
           <p className="mt-3 text-slate-400">أدخل بياناتك للدردشة مع أصدقائك</p>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
-          {error && <div className="p-3 text-sm text-red-200 bg-red-800 bg-opacity-50 border border-red-700 rounded-md text-center">{error}</div>}
+          {error && <div className="p-3 text-xs sm:text-sm text-red-200 bg-red-800 bg-opacity-50 border border-red-700 rounded-md text-center">{error}</div>}
           <div>
             <label htmlFor="username" className="sr-only">اسم المستخدم</label>
             <input
@@ -37,7 +37,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               type="text"
               autoComplete="username"
               required
-              className="appearance-none relative block w-full px-3 py-3 border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="appearance-none relative block w-full px-3 py-3 border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm"
               placeholder="اسم المستخدم"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -51,7 +51,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               type="password"
               autoComplete="current-password"
               required
-              className="appearance-none relative block w-full px-3 py-3 border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="appearance-none relative block w-full px-3 py-3 border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm"
               placeholder="كلمة المرور"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

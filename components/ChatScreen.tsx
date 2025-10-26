@@ -165,7 +165,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
   }, [messages]);
 
     useEffect(() => {
-        const senders = [...new Set(messages.map(m => m.sender).filter(s => s !== 'System'))];
+        // FIX: Explicitly type `senders` as `string[]` to correct a type inference issue where `sender` was `unknown`.
+        const senders: string[] = [...new Set(messages.map(m => m.sender))].filter(s => s !== 'System');
         const picsToFetch: Record<string, string | null> = {};
         let needsUpdate = false;
         for (const sender of senders) {
@@ -313,21 +314,22 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
 
       <div className="flex flex-col flex-1 h-full">
         <header className="flex items-center justify-between p-4 bg-slate-800 shadow-md z-10 border-b border-slate-700">
-          <div className="flex items-baseline gap-3">
-            <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500">عينابوس</h1>
-            <span className="text-xl font-medium text-slate-400">/</span>
-            <h2 className="text-xl font-semibold text-white">مجموعة الأصدقاء</h2>
+          <div className="flex items-baseline gap-2 sm:gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500">عينابوس</h1>
+            <span className="hidden sm:inline text-lg sm:text-xl font-medium text-slate-400">/</span>
+            <h2 className="hidden sm:inline text-lg sm:text-xl font-semibold text-white">مجموعة الأصدقاء</h2>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {username === 'admin' && (
                 <button
                     onClick={() => setIsUserPanelOpen(true)}
-                    className="px-4 py-2 text-sm font-medium text-white bg-slate-700 rounded-md hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-colors duration-200 flex items-center gap-2"
+                    title="إدارة الحسابات"
+                    className="p-2 sm:px-4 sm:py-2 text-sm font-medium text-white bg-slate-700 rounded-md hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-colors duration-200 flex items-center gap-2"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
                     </svg>
-                    <span>إدارة الحسابات</span>
+                    <span className="hidden sm:inline">إدارة الحسابات</span>
                 </button>
             )}
             <input type="file" ref={avatarInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
@@ -352,7 +354,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
             </button>
             <button
                 onClick={onLogout}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-colors duration-200"
+                className="px-3 py-2 sm:px-4 text-xs sm:text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-colors duration-200"
             >
                 تسجيل الخروج
             </button>
@@ -408,9 +410,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
           <div ref={messagesEndRef} />
         </main>
 
-        <footer className="p-4 bg-slate-800 border-t border-slate-700">
+        <footer className="p-2 sm:p-4 bg-slate-800 border-t border-slate-700">
           {fileError && <div className="p-2 mb-2 text-sm text-red-200 bg-red-800 bg-opacity-50 border border-red-700 rounded-md text-center" role="alert">{fileError}</div>}
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2 sm:gap-4">
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
              <input
               type="file"
               ref={fileInputRef}
@@ -421,10 +423,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="p-3 bg-slate-700 rounded-full text-slate-300 hover:bg-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-all duration-200"
+              className="p-2 sm:p-3 bg-slate-700 rounded-full text-slate-300 hover:bg-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-all duration-200"
               aria-label="إرفاق ملف"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
               </svg>
             </button>
@@ -433,13 +435,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout }) => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="اكتب رسالتك هنا..."
-              className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-400"
+              className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-400 text-sm"
             />
             <button
               type="submit"
-              className="p-3 bg-indigo-600 rounded-full text-white hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-all duration-200"
+              className="p-2 sm:p-3 bg-indigo-600 rounded-full text-white hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-all duration-200"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transform rotate-180" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 transform rotate-180" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
               </svg>
             </button>
