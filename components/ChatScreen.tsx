@@ -59,10 +59,10 @@ const MessageContent: React.FC<{ message: Message; onViewMedia: (file: MessageFi
             )}
             {message.file && (
                 message.file.type === 'audio' ? (
-                     <audio controls src={message.file.url} className="w-full max-w-xs" />
+                     <audio controls src={message.file.url} className="w-full" />
                 ) : (
                     <div 
-                        className="max-w-xs cursor-pointer"
+                        className="cursor-pointer"
                         onClick={() => onViewMedia(message.file!)}
                     >
                         {message.file.type === 'image' ? (
@@ -546,7 +546,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                                     </div>
                                 )}
                             </div>
-                            <div className={`flex flex-col max-w-xs md:max-w-md relative ${msg.sender === username ? 'items-end' : 'items-start'}`}>
+                            <div className={`flex flex-col max-w-xl relative ${msg.sender === username ? 'items-end' : 'items-start'}`}>
                                  {popoverMessageId === msg.id && (
                                     <div 
                                         className={`absolute z-20 bottom-full mb-1 flex items-center gap-1 bg-slate-800 p-1.5 rounded-full shadow-lg border border-slate-700 ${msg.sender === username ? 'right-0' : 'left-0'}`}
