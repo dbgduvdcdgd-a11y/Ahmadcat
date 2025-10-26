@@ -1,4 +1,5 @@
 const USERS_KEY = 'chat-app-users';
+const PRIVATE_CHAT_PREFIX = 'private-chat-';
 
 // ملاحظة: هذا التنفيذ غير آمن ومخصص للأغراض التوضيحية فقط.
 // في تطبيق حقيقي، لا تقم أبدًا بتخزين كلمات المرور كنص عادي.
@@ -13,6 +14,19 @@ const getStoredUsers = (): Record<string, { password: string }> => {
 
 const setStoredUsers = (users: Record<string, { password: string }>) => {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
+};
+
+const cleanupUserChats = (deletedUsername: string) => {
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(PRIVATE_CHAT_PREFIX)) {
+            // e.g., private-chat-userA-userB
+            const participantsKey = key.substring(PRIVATE_CHAT_PREFIX.length);
+            const participants = participantsKey.split('-');
+            if (participants.includes(deletedUsername)) {
+                localStorage.removeItem(key);
+            }
+        }
+    });
 };
 
 export const initializeAdmin = () => {
@@ -94,6 +108,44 @@ export const changeUsername = (oldUsername: string, newUsername: string, passwor
     setStoredUsers(users);
     
     return { success: true, message: 'تم تغيير اسم المستخدم بنجاح.' };
+};
+
+// Admin function
+export const deleteUser = (username: string): { success: boolean, message: string } => {
+    if (username === 'admin') {
+        return { success: false, message: 'لا يمكن حذف حساب المسؤول.' };
+    }
+    const users = getStoredUsers();
+    if (!users[username]) {
+        return { success: false, message: 'المستخدم غير موجود.' };
+    }
+    delete users[username];
+    setStoredUsers(users);
+    cleanupUserChats(username); // Clean up private chats
+    return { success: true, message: `تم حذف المستخدم ${username} بنجاح.` };
+};
+
+// User self-delete function
+export const deleteSelf = (username: string, password: string): { success: boolean, message: string } => {
+    if (username === 'admin') {
+        return { success: false, message: 'لا يمكن حذف حساب المسؤول.' };
+    }
+    const users = getStoredUsers();
+    const user = users[username];
+
+    if (!user) {
+        return { success: false, message: 'المستخدم غير موجود.' };
+    }
+
+    if (user.password !== password) {
+        return { success: false, message: 'كلمة المرور غير صحيحة.' };
+    }
+
+    // Password is correct, proceed with deletion
+    delete users[username];
+    setStoredUsers(users);
+    cleanupUserChats(username); // Clean up private chats
+    return { success: true, message: 'تم حذف الحساب بنجاح. جاري تسجيل الخروج...' };
 };
 
 

@@ -48,3 +48,15 @@ export const renameUserProfile = (oldUsername: string, newUsername: string): voi
         setStoredProfiles(profiles);
     }
 };
+
+/**
+ * Deletes a user's profile.
+ * @param username The username of the profile to delete.
+ */
+export const deleteUserProfile = (username: string): void => {
+    const profiles = getStoredProfiles();
+    if (profiles[username]) {
+        delete profiles[username];
+        setStoredProfiles(profiles);
+    }
+};

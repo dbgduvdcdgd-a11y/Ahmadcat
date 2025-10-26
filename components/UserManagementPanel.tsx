@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as authService from '../services/authService';
+import * as profileService from '../services/profileService';
 
-const UserManagementPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+interface UserManagementPanelProps {
+    onClose: () => void;
+    onUserDeleted: (username: string) => void;
+}
+
+const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ onClose, onUserDeleted }) => {
     const [newUsername, setNewUsername] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [users, setUsers] = useState<Array<{ username: string; password: string }>>([]);
@@ -31,6 +37,22 @@ const UserManagementPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => 
         }
     };
     
+    const handleDeleteUser = (username: string) => {
+        if (window.confirm(`هل أنت متأكد أنك تريد حذف المستخدم ${username}؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+            const result = authService.deleteUser(username);
+
+            setMessage(result.message);
+            setMessageType(result.success ? 'success' : 'error');
+
+            if (result.success) {
+                profileService.deleteUserProfile(username);
+                loadUsers();
+                onUserDeleted(username);
+            }
+            setTimeout(() => setMessage(''), 3000);
+        }
+    };
+
     const messageColor = messageType === 'success' ? 'text-green-300 bg-green-900' : 'text-red-300 bg-red-900';
 
     return (
@@ -82,6 +104,18 @@ const UserManagementPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                             </svg>
                                         </button>
+                                        {username !== 'admin' && (
+                                            <button
+                                                onClick={() => handleDeleteUser(username)}
+                                                title="حذف المستخدم"
+                                                className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                                aria-label={`حذف ${username}`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}

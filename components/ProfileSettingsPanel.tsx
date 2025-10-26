@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import * as authService from '../services/authService';
+import * as profileService from '../services/profileService';
 
 interface ProfileSettingsPanelProps {
     username: string;
     onClose: () => void;
     onUsernameChangeSuccess: (newUsername: string) => void;
+    onAccountDeleted: () => void;
 }
 
-const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, onClose, onUsernameChangeSuccess }) => {
+const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, onClose, onUsernameChangeSuccess, onAccountDeleted }) => {
     const [currentPassword, setCurrentPassword] = useState('');
     const [newUsername, setNewUsername] = useState('');
     const [usernameMessage, setUsernameMessage] = useState({ text: '', type: 'success' });
@@ -15,6 +17,10 @@ const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, o
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [passwordMessage, setPasswordMessage] = useState({ text: '', type: 'success' });
+
+    const [deletePassword, setDeletePassword] = useState('');
+    const [deleteMessage, setDeleteMessage] = useState({ text: '', type: 'success' });
+
 
     const handleUsernameChange = (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,9 +46,29 @@ const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, o
             setTimeout(() => setPasswordMessage({ text: '', type: 'success' }), 3000);
         }
     };
+
+    const handleAccountDelete = (e: React.FormEvent) => {
+        e.preventDefault();
+        setDeleteMessage({ text: '', type: 'success' });
+        
+        if (!window.confirm('هل أنت متأكد تمامًا من حذف حسابك؟ لا يمكن التراجع عن هذا الإجراء.')) {
+            return;
+        }
+
+        const result = authService.deleteSelf(username, deletePassword);
+        setDeleteMessage({ text: result.message, type: result.success ? 'success' : 'error' });
+
+        if (result.success) {
+            profileService.deleteUserProfile(username);
+            setTimeout(() => {
+                onAccountDeleted();
+            }, 2000);
+        }
+    };
     
     const usernameMessageColor = usernameMessage.type === 'success' ? 'text-green-300 bg-green-900' : 'text-red-300 bg-red-900';
     const passwordMessageColor = passwordMessage.type === 'success' ? 'text-green-300 bg-green-900' : 'text-red-300 bg-red-900';
+    const deleteMessageColor = deleteMessage.type === 'success' ? 'text-green-300 bg-green-900' : 'text-red-300 bg-red-900';
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -95,6 +121,22 @@ const ProfileSettingsPanel: React.FC<ProfileSettingsPanelProps> = ({ username, o
                             </div>
                             <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 transition-colors duration-200">
                                 تغيير كلمة المرور
+                            </button>
+                        </form>
+                    </div>
+
+                    {/* Delete Account Section */}
+                    <div className="bg-slate-900 p-4 rounded-lg border border-red-800/50">
+                        <h4 className="text-lg font-semibold text-red-400 mb-2">حذف الحساب</h4>
+                        <p className="text-sm text-slate-400 mb-4">هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك، بما في ذلك المحادثات الخاصة.</p>
+                        {deleteMessage.text && <p className={`text-sm mb-3 p-2 rounded-md bg-opacity-50 ${deleteMessageColor}`}>{deleteMessage.text}</p>}
+                        <form onSubmit={handleAccountDelete} className="space-y-4">
+                            <div>
+                                <label htmlFor="deletePassword" className="block text-sm font-medium text-slate-300 mb-1">كلمة المرور (للتأكيد)</label>
+                                <input type="password" id="deletePassword" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} className="w-full px-3 py-2 border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm" required disabled={username === 'admin'} />
+                            </div>
+                            <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-red-700 hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-red-600 transition-colors duration-200 disabled:bg-red-900/50 disabled:text-slate-400 disabled:cursor-not-allowed" disabled={username === 'admin'}>
+                                {username === 'admin' ? 'لا يمكن حذف حساب المسؤول' : 'حذف حسابي نهائيًا'}
                             </button>
                         </form>
                     </div>
