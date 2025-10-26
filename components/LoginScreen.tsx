@@ -83,6 +83,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             </button>
           </div>
         </form>
+
+        <div className="text-center pt-4 border-t border-slate-700">
+          <p className="text-sm text-slate-400 mb-4">تابعنا على</p>
+          <div className="flex items-center justify-center gap-6">
+            <a href="https://vm.tiktok.com/ZSHvGoK61aftp-ySWF5/" target="_blank" rel="noopener noreferrer" title="TikTok" className="text-slate-400 hover:text-white transition-colors duration-200">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-2.43.03-4.83-1-6.7-2.91-1.85-1.88-2.75-4.61-2.2-7.18.51-2.45 2.42-4.59 4.79-5.51 2.03-.8 4.34.1 5.51 2.32.06.11.11.22.17.33.01-1.02.02-2.03.01-3.05-.02-1.39-.58-2.73-1.48-3.69-1.01-1.07-2.52-1.63-4-1.66-1.79-.04-3.57.48-4.83 1.81V.02h4.17c.1-.01.21-.01.31-.01Z"/>
+              </svg>
+            </a>
+            <a href="https://youtube.com/@watanhake?si=lTdsVV9iwL-HTWkT" target="_blank" rel="noopener noreferrer" title="YouTube" className="text-slate-400 hover:text-red-500 transition-colors duration-200">
+               <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814ZM9.545 15.568V8.432L15.818 12l-6.273 3.568Z"/>
+              </svg>
+            </a>
+            <a href="https://m.me/ahmd.jhad.swfan?source=qr_link_share" target="_blank" rel="noopener noreferrer" title="Messenger" className="text-slate-400 hover:text-blue-500 transition-colors duration-200">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.422 1.657 6.463 4.2 8.444v4.445l3.844-2.135c1.239.356 2.568.545 3.956.545 6.627 0 12-4.974 12-11.111C24 4.974 18.627 0 12 0Zm1.233 14.933-2.466-2.8-5.7 2.8L12.001 7.1l2.466 2.8 5.7-2.8L13.233 14.933Z"/>
+              </svg>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );

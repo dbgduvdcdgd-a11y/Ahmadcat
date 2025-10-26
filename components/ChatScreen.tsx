@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Message, MessageFile } from '../types';
+import type { Message, MessageFile, ChatTarget } from '../types';
 import * as authService from '../services/authService';
 import * as profileService from '../services/profileService';
 import ProfileSettingsPanel from './ProfileSettingsPanel';
+import UserManagementPanel from './UserManagementPanel';
+import UserListPanel from './UserListPanel';
 
 
 const CHAT_MESSAGES_KEY = 'group-chat-messages';
+const PRIVATE_CHAT_PREFIX = 'private-chat-';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_AVATAR_SIZE = 1 * 1024 * 1024; // 1MB
 
@@ -21,98 +24,6 @@ const nameToColor = (name: string): string => {
         'bg-purple-500', 'bg-pink-500', 'bg-teal-500', 'bg-orange-500'
     ];
     return colors[Math.abs(hash) % colors.length];
-};
-
-const UserManagementPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const [newUsername, setNewUsername] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [users, setUsers] = useState<Array<{ username: string; password: string }>>([]);
-    const [message, setMessage] = useState('');
-    const [messageType, setMessageType] = useState<'success' | 'error'>('success');
-
-    const loadUsers = useCallback(() => {
-        setUsers(authService.getUsersWithPasswords());
-    }, []);
-
-    useEffect(() => {
-        loadUsers();
-    }, [loadUsers]);
-
-    const handleCreateUser = (e: React.FormEvent) => {
-        e.preventDefault();
-        setMessage('');
-        const result = authService.registerUser(newUsername, newPassword);
-        setMessage(result.message);
-        setMessageType(result.success ? 'success' : 'error');
-
-        if (result.success) {
-            setNewUsername('');
-            setNewPassword('');
-            loadUsers();
-            setTimeout(() => setMessage(''), 3000);
-        }
-    };
-    
-    const messageColor = messageType === 'success' ? 'text-green-300 bg-green-900' : 'text-red-300 bg-red-900';
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-                <header className="flex items-center justify-between p-4 border-b border-slate-700 flex-shrink-0">
-                    <h3 className="text-xl font-bold text-white">إدارة الحسابات</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </header>
-
-                <div className="p-6 flex-1 overflow-y-auto">
-                    <div className="bg-slate-900 p-4 rounded-lg">
-                        <h4 className="text-lg font-semibold text-white mb-3">توليد حساب جديد</h4>
-                        {message && <p className={`text-sm mb-3 p-2 rounded-md bg-opacity-50 ${messageColor}`}>{message}</p>}
-                        <form onSubmit={handleCreateUser} className="space-y-4">
-                            <div>
-                                <label htmlFor="newUsernameModal" className="block text-sm font-medium text-slate-300 mb-1">اسم المستخدم الجديد</label>
-                                <input type="text" id="newUsernameModal" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full px-3 py-2 border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required minLength={3} />
-                            </div>
-                             <div>
-                                <label htmlFor="newPasswordModal"  className="block text-sm font-medium text-slate-300 mb-1">كلمة المرور الجديدة</label>
-                                <input type="password" id="newPasswordModal" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required minLength={6} />
-                            </div>
-                            <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 transition-colors duration-200">
-                                إنشاء حساب
-                            </button>
-                        </form>
-                    </div>
-
-                    <div className="mt-6">
-                        <h4 className="text-lg font-semibold text-white mb-3">المستخدمون المسجلون ({users.length})</h4>
-                         <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                            {users.map(({ username, password }) => (
-                                <div key={username} className="bg-slate-700 p-2 rounded-md text-sm flex justify-between items-center gap-2">
-                                    <span className="font-semibold truncate flex-1" title={username}>{username}</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">كلمة المرور:</span>
-                                        <span className="font-mono text-indigo-300 truncate">{password}</span>
-                                        <button
-                                            onClick={() => navigator.clipboard.writeText(password)}
-                                            title="نسخ كلمة المرور"
-                                            className="p-1 text-slate-400 hover:text-white transition-colors"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 };
 
 const linkify = (text: string) => {
@@ -155,26 +66,31 @@ interface ChatScreenProps {
 }
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameUpdate }) => {
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const storedMessages = localStorage.getItem(CHAT_MESSAGES_KEY);
-      return storedMessages ? (JSON.parse(storedMessages) as Message[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [fileError, setFileError] = useState('');
   const [isUserPanelOpen, setIsUserPanelOpen] = useState(false);
   const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
+  const [isUserListOpen, setIsUserListOpen] = useState(false);
   const [viewingMedia, setViewingMedia] = useState<MessageFile | null>(null);
   const [avatar, setAvatar] = useState<string | null>(() => profileService.getProfilePicture(username));
   const [profilePictures, setProfilePictures] = useState<Record<string, string | null>>({});
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [currentChat, setCurrentChat] = useState<ChatTarget>({ type: 'group' });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const getChatKey = useCallback((target: ChatTarget): string => {
+    if (target.type === 'group') {
+        return CHAT_MESSAGES_KEY;
+    }
+    const participants = [username, target.with].sort();
+    return `${PRIVATE_CHAT_PREFIX}${participants[0]}-${participants[1]}`;
+  }, [username]);
+  
+  const currentChatKey = getChatKey(currentChat);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -200,8 +116,17 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     }, [messages, profilePictures]);
   
   useEffect(() => {
+    try {
+        const storedMessages = localStorage.getItem(currentChatKey);
+        setMessages(storedMessages ? (JSON.parse(storedMessages) as Message[]) : []);
+    } catch {
+        setMessages([]);
+    }
+  }, [currentChatKey]);
+  
+  useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
-        if (event.key === CHAT_MESSAGES_KEY && event.newValue) {
+        if (event.key === currentChatKey && event.newValue) {
             try { 
                 setMessages(JSON.parse(event.newValue) as Message[]);
             } 
@@ -210,19 +135,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [currentChatKey]);
 
   const addNewMessage = useCallback((message: Message) => {
     try {
-        const currentMessages: Message[] = JSON.parse(localStorage.getItem(CHAT_MESSAGES_KEY) || '[]');
+        const currentMessages: Message[] = JSON.parse(localStorage.getItem(currentChatKey) || '[]');
         const updatedMessages = [...currentMessages, message];
         
-        localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(updatedMessages));
+        localStorage.setItem(currentChatKey, JSON.stringify(updatedMessages));
         setMessages(updatedMessages);
     } catch (error) {
         console.error("Error saving message to localStorage", error);
     }
-  }, []);
+  }, [currentChatKey]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,10 +271,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     // Component will unmount, no need to set state back to false
   };
 
+  const handleSelectChat = (target: ChatTarget) => {
+    if (target.type === 'private' && target.with === username) return;
+    setCurrentChat(target);
+    setNewMessage('');
+    setIsUserListOpen(false);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-slate-900">
       {isUserPanelOpen && <UserManagementPanel onClose={() => setIsUserPanelOpen(false)} />}
       {isProfilePanelOpen && <ProfileSettingsPanel username={username} onClose={() => setIsProfilePanelOpen(false)} onUsernameChangeSuccess={handleUsernameChangeSuccess} />}
+      {isUserListOpen && <UserListPanel currentUser={username} onClose={() => setIsUserListOpen(false)} onSelectChat={handleSelectChat} />}
       {viewingMedia && (
         <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4" onClick={() => setViewingMedia(null)}>
             <button onClick={() => setViewingMedia(null)} className="absolute top-4 right-4 text-white text-4xl z-10" aria-label="إغلاق">&times;</button>
@@ -368,9 +301,21 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
           <div className="flex items-baseline gap-2 sm:gap-3">
             <h1 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500">الحادي عشر عينابوس</h1>
             <span className="hidden sm:inline text-lg sm:text-xl font-medium text-slate-400">/</span>
-            <h2 className="hidden sm:inline text-lg sm:text-xl font-semibold text-white">مجموعة الأصدقاء</h2>
+            <h2 className="hidden sm:inline text-lg sm:text-xl font-semibold text-white truncate">
+                {currentChat.type === 'group' ? 'مجموعة الأصدقاء' : `محادثة مع ${currentChat.with}`}
+            </h2>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
+            <button
+                onClick={() => setIsUserListOpen(true)}
+                title="المستخدمون"
+                className="p-2 sm:px-4 sm:py-2 text-sm font-medium text-white bg-slate-700 rounded-md hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-colors duration-200 flex items-center gap-2"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                </svg>
+                <span className="hidden sm:inline">المستخدمون</span>
+            </button>
             {username === 'admin' && (
                 <button
                     onClick={() => setIsUserPanelOpen(true)}
@@ -378,9 +323,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                     className="p-2 sm:px-4 sm:py-2 text-sm font-medium text-white bg-slate-700 rounded-md hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 transition-colors duration-200 flex items-center gap-2"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                       <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                       <path d="M10 2a1 1 0 00-1 1v1a1 1 0 002 0V3a1 1 0 00-1-1zm-5 5a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm10 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm-5 5a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm-5 5a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm10 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1z" />
+                       <path d="M4 1.5A2.5 2.5 0 001.5 4v12A2.5 2.5 0 004 18.5h12a2.5 2.5 0 002.5-2.5V4A2.5 2.5 0 0016 1.5H4zM3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4z" />
                     </svg>
-                    <span className="hidden sm:inline">إدارة الحسابات</span>
+                    <span className="hidden sm:inline">الإدارة</span>
                 </button>
             )}
             <button

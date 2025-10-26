@@ -10,3 +10,5 @@ export interface Message {
   text?: string; // Optional text content or caption
   file?: MessageFile;
 }
+
+export type ChatTarget = { type: 'group' } | { type: 'private'; with: string };
