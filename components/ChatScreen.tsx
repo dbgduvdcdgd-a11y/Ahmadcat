@@ -101,6 +101,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   const [currentChat, setCurrentChat] = useState<ChatTarget>({ type: 'group' });
   const [isRecording, setIsRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [actionMenuMessage, setActionMenuMessage] = useState<Message | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -371,14 +372,39 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     };
 
     const handleMessageLongPressStart = (message: Message) => {
+        if (message.sender === 'System') return; // Don't show menu for system messages
         longPressTimerRef.current = setTimeout(() => {
-            handleReply(message);
+            setActionMenuMessage(message);
         }, 500); // 500ms for a long press
     };
 
     const handleMessageLongPressEnd = () => {
         if (longPressTimerRef.current) {
             clearTimeout(longPressTimerRef.current);
+        }
+    };
+
+    const handleDeleteMessage = (messageId: string) => {
+        const messageToDelete = messages.find(m => m.id === messageId);
+        if (!messageToDelete) return;
+
+        if (messageToDelete.sender !== username && username !== 'admin') {
+            return; // Should not happen due to UI, but for safety
+        }
+        
+        if (!window.confirm('هل أنت متأكد من حذف هذه الرسالة؟ سيتم حذفها لدى الجميع.')) {
+            setActionMenuMessage(null);
+            return;
+        }
+
+        try {
+            const currentMessages: Message[] = JSON.parse(localStorage.getItem(currentChatKey) || '[]');
+            const updatedMessages = currentMessages.filter(m => m.id !== messageId);
+            localStorage.setItem(currentChatKey, JSON.stringify(updatedMessages));
+            setMessages(updatedMessages);
+            setActionMenuMessage(null); // Close the menu
+        } catch (e) {
+            console.error("Could not delete message", e);
         }
     };
 
@@ -464,7 +490,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                             onTouchEnd={handleMessageLongPressEnd}
                             onMouseDown={() => handleMessageLongPressStart(msg)}
                             onMouseUp={handleMessageLongPressEnd}
-                            onMouseLeave={handleMessageLongPressEnd} // In case the mouse leaves the element while pressed
+                            onMouseLeave={handleMessageLongPressEnd}
                         >
                             <div className="flex-shrink-0">
                                 {profilePictures[msg.sender] ? (
@@ -573,6 +599,43 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 </div>
             </footer>
         </div>
+
+        {/* Action Menu Modal */}
+        {actionMenuMessage && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-end" onClick={() => setActionMenuMessage(null)}>
+                <div className="bg-slate-800 w-full rounded-t-2xl p-4 shadow-lg animate-slide-up" onClick={(e) => e.stopPropagation()}>
+                    <div className="text-sm text-slate-400 mb-2 border-b border-slate-700 pb-2">
+                        <p className="font-bold text-white">{actionMenuMessage.sender}</p>
+                        <p className="truncate">{getMessageSnippet(actionMenuMessage)}</p>
+                    </div>
+                    <div className="flex flex-col items-start space-y-1">
+                        <button 
+                            onClick={() => { 
+                                handleReply(actionMenuMessage); 
+                                setActionMenuMessage(null);
+                            }}
+                            className="w-full flex items-center gap-3 text-left p-3 rounded-lg hover:bg-slate-700 transition-colors text-slate-100"
+                        >
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <span>رد</span>
+                        </button>
+                        {(actionMenuMessage.sender === username || username === 'admin') && (
+                            <button 
+                                onClick={() => handleDeleteMessage(actionMenuMessage.id)}
+                                className="w-full flex items-center gap-3 text-left p-3 rounded-lg hover:bg-slate-700 transition-colors text-red-400"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                </svg>
+                                <span>حذف</span>
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* Modals */}
         {isUserPanelOpen && <UserManagementPanel onClose={() => setIsUserPanelOpen(false)} onUserDeleted={handleUserDeleted} />}

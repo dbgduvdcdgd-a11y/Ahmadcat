@@ -7,12 +7,22 @@
     <title>الحادي عشر عينابوس</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+      body {
+        overflow: hidden;
+      }
       @keyframes highlight-animation {
         from { background-color: rgba(71, 85, 105, 0.8); } /* Equivalent to Tailwind's slate-700 with opacity */
         to { background-color: transparent; }
       }
       .highlight-message {
         animation: highlight-animation 1.5s ease-out;
+      }
+      @keyframes slide-up-animation {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+      }
+      .animate-slide-up {
+        animation: slide-up-animation 0.3s ease-out;
       }
     </style>
   <script type="importmap">
