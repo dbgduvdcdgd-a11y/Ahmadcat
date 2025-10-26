@@ -11,6 +11,7 @@ export interface Message {
   file?: MessageFile;
   sticker?: string; // URL to a sticker image
   replyTo?: string; // ID of the message being replied to
+  reactions?: { [emoji: string]: string[] }; // emoji -> array of usernames
 }
 
 export type ChatTarget = { type: 'group' } | { type: 'private'; with: string };

@@ -12,6 +12,7 @@ const CHAT_MESSAGES_KEY = 'group-chat-messages';
 const PRIVATE_CHAT_PREFIX = 'private-chat-';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_AVATAR_SIZE = 1 * 1024 * 1024; // 1MB
+const REACTION_EMOJIS = ['😡', '😘', '🔥', '😎'];
 
 const nameToColor = (name: string): string => {
     let hash = 0;
@@ -45,6 +46,7 @@ const getMessageSnippet = (message: Message): string => {
         return message.file.name;
     }
     if (message.sticker) return 'ملصق';
+    if (message.reactions && Object.keys(message.reactions).length > 0) return 'تفاعل';
     return 'رسالة';
 };
 
@@ -101,7 +103,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   const [currentChat, setCurrentChat] = useState<ChatTarget>({ type: 'group' });
   const [isRecording, setIsRecording] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [actionMenuMessage, setActionMenuMessage] = useState<Message | null>(null);
+  const [popoverMessageId, setPopoverMessageId] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -164,6 +166,17 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [currentChatKey]);
+
+  // Close popover when clicking away
+  useEffect(() => {
+    const closePopover = () => setPopoverMessageId(null);
+    if (popoverMessageId) {
+        document.addEventListener('click', closePopover);
+    }
+    return () => {
+        document.removeEventListener('click', closePopover);
+    };
+}, [popoverMessageId]);
 
   const addNewMessage = useCallback((message: Message) => {
     try {
@@ -368,19 +381,51 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     const handleReply = (message: Message) => {
         if (message.sender !== 'System') {
             setReplyingTo(message);
+            setPopoverMessageId(null);
         }
     };
 
     const handleMessageLongPressStart = (message: Message) => {
         if (message.sender === 'System') return; // Don't show menu for system messages
         longPressTimerRef.current = setTimeout(() => {
-            setActionMenuMessage(message);
+            setPopoverMessageId(message.id);
         }, 500); // 500ms for a long press
     };
 
     const handleMessageLongPressEnd = () => {
         if (longPressTimerRef.current) {
             clearTimeout(longPressTimerRef.current);
+        }
+    };
+
+    const handleReaction = (messageId: string, emoji: string) => {
+        const messageIndex = messages.findIndex(m => m.id === messageId);
+        if (messageIndex === -1) return;
+
+        const updatedMessages = [...messages];
+        const message = { ...updatedMessages[messageIndex] };
+        
+        message.reactions = message.reactions || {};
+        message.reactions[emoji] = message.reactions[emoji] || [];
+    
+        const userIndex = message.reactions[emoji].indexOf(username);
+    
+        if (userIndex > -1) {
+            message.reactions[emoji].splice(userIndex, 1);
+            if (message.reactions[emoji].length === 0) {
+                delete message.reactions[emoji];
+            }
+        } else {
+            message.reactions[emoji].push(username);
+        }
+        
+        updatedMessages[messageIndex] = message;
+    
+        try {
+            localStorage.setItem(currentChatKey, JSON.stringify(updatedMessages));
+            setMessages(updatedMessages);
+        } catch (e) {
+            console.error("Could not update reactions", e);
         }
     };
 
@@ -393,7 +438,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
         }
         
         if (!window.confirm('هل أنت متأكد من حذف هذه الرسالة؟ سيتم حذفها لدى الجميع.')) {
-            setActionMenuMessage(null);
+            setPopoverMessageId(null);
             return;
         }
 
@@ -402,7 +447,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             const updatedMessages = currentMessages.filter(m => m.id !== messageId);
             localStorage.setItem(currentChatKey, JSON.stringify(updatedMessages));
             setMessages(updatedMessages);
-            setActionMenuMessage(null); // Close the menu
+            setPopoverMessageId(null); // Close the popover
         } catch (e) {
             console.error("Could not delete message", e);
         }
@@ -478,7 +523,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             </header>
 
             {/* Messages */}
-            <main className="flex-1 overflow-y-auto p-4 space-y-4">
+            <main className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => setPopoverMessageId(null)}>
                 {messages.map((msg) => (
                     msg.sender === 'System' ? (
                         <div key={msg.id} className="text-center text-sm text-slate-400 py-2">
@@ -486,9 +531,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                         </div>
                     ) : (
                         <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === username ? 'flex-row-reverse' : ''}`}
-                            onTouchStart={() => handleMessageLongPressStart(msg)}
+                            onTouchStart={(e) => { e.stopPropagation(); handleMessageLongPressStart(msg); }}
                             onTouchEnd={handleMessageLongPressEnd}
-                            onMouseDown={() => handleMessageLongPressStart(msg)}
+                            onMouseDown={(e) => { e.stopPropagation(); handleMessageLongPressStart(msg); }}
                             onMouseUp={handleMessageLongPressEnd}
                             onMouseLeave={handleMessageLongPressEnd}
                         >
@@ -501,7 +546,29 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                                     </div>
                                 )}
                             </div>
-                            <div className={`flex flex-col max-w-xs md:max-w-md ${msg.sender === username ? 'items-end' : 'items-start'}`}>
+                            <div className={`flex flex-col max-w-xs md:max-w-md relative ${msg.sender === username ? 'items-end' : 'items-start'}`}>
+                                 {popoverMessageId === msg.id && (
+                                    <div 
+                                        className={`absolute z-20 bottom-full mb-1 flex items-center gap-1 bg-slate-800 p-1.5 rounded-full shadow-lg border border-slate-700 ${msg.sender === username ? 'right-0' : 'left-0'}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {REACTION_EMOJIS.map(emoji => (
+                                            <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} className="p-1 rounded-full hover:bg-slate-600 transition-transform transform active:scale-125 text-xl">
+                                                {emoji}
+                                            </button>
+                                        ))}
+                                        <div className="w-px h-5 bg-slate-600 mx-1"></div>
+                                        <button onClick={() => handleReply(msg)} className="p-1 rounded-full hover:bg-slate-600 transition-colors" title="رد">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                        </button>
+                                        {(msg.sender === username || username === 'admin') && (
+                                            <button onClick={() => handleDeleteMessage(msg.id)} className="p-1 rounded-full text-red-400 hover:bg-slate-600 transition-colors" title="حذف">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className={`px-4 py-2 rounded-2xl ${msg.sender === username ? 'bg-indigo-600 rounded-br-none' : 'bg-slate-700 rounded-bl-none'}`}>
                                     <span className={`text-xs font-bold ${msg.sender === username ? 'text-indigo-200' : 'text-slate-400'} block mb-1`}>{msg.sender}</span>
                                     
@@ -514,6 +581,23 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
 
                                     <MessageContent message={msg} onViewMedia={setViewingMedia} />
                                 </div>
+                                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                                    <div className={`flex gap-1.5 mt-1.5 flex-wrap ${msg.sender === username ? 'justify-end' : 'justify-start'}`}>
+                                        {Object.entries(msg.reactions).map(([emoji, senders]) => {
+                                            // FIX: Cast senders to string[] to resolve TypeScript error where it's inferred as 'unknown'.
+                                            const senderList = senders as string[];
+                                            if (senderList.length === 0) {
+                                                return null;
+                                            }
+                                            return (
+                                                <div key={emoji} className="bg-slate-700/80 backdrop-blur-sm border border-slate-600/50 rounded-full px-2 py-0.5 text-xs flex items-center gap-1 cursor-pointer" title={senderList.join(', ')}>
+                                                    <span>{emoji}</span>
+                                                    <span className="text-slate-300 font-medium">{senderList.length}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )
@@ -599,43 +683,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 </div>
             </footer>
         </div>
-
-        {/* Action Menu Modal */}
-        {actionMenuMessage && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-end" onClick={() => setActionMenuMessage(null)}>
-                <div className="bg-slate-800 w-full rounded-t-2xl p-4 shadow-lg animate-slide-up" onClick={(e) => e.stopPropagation()}>
-                    <div className="text-sm text-slate-400 mb-2 border-b border-slate-700 pb-2">
-                        <p className="font-bold text-white">{actionMenuMessage.sender}</p>
-                        <p className="truncate">{getMessageSnippet(actionMenuMessage)}</p>
-                    </div>
-                    <div className="flex flex-col items-start space-y-1">
-                        <button 
-                            onClick={() => { 
-                                handleReply(actionMenuMessage); 
-                                setActionMenuMessage(null);
-                            }}
-                            className="w-full flex items-center gap-3 text-left p-3 rounded-lg hover:bg-slate-700 transition-colors text-slate-100"
-                        >
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            <span>رد</span>
-                        </button>
-                        {(actionMenuMessage.sender === username || username === 'admin') && (
-                            <button 
-                                onClick={() => handleDeleteMessage(actionMenuMessage.id)}
-                                className="w-full flex items-center gap-3 text-left p-3 rounded-lg hover:bg-slate-700 transition-colors text-red-400"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                                </svg>
-                                <span>حذف</span>
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-        )}
 
         {/* Modals */}
         {isUserPanelOpen && <UserManagementPanel onClose={() => setIsUserPanelOpen(false)} onUserDeleted={handleUserDeleted} />}
