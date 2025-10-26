@@ -14,7 +14,10 @@ const App: React.FC = () => {
     initializeAdmin();
   }, []);
 
-  const handleLogin = useCallback((name: string, pass: string): boolean => {
+  const handleLogin = useCallback(async (name: string, pass: string): Promise<boolean> => {
+    // Add a 2-second delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+      
     const trimmedName = name.trim();
     const success = login(trimmedName, pass);
 
@@ -40,7 +43,10 @@ const App: React.FC = () => {
     return success;
   }, []);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    // Add a 2-second delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
      // Add a 'left' message to localStorage
      try {
         const currentMessages: Message[] = JSON.parse(localStorage.getItem(CHAT_MESSAGES_KEY) || '[]');
@@ -51,27 +57,23 @@ const App: React.FC = () => {
         };
         const updatedMessages = [...currentMessages, systemMessage];
         localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(updatedMessages));
-    } catch (e) {
-        console.error("Could not add leave message", e);
-    }
+      } catch(e) {
+          console.error("Could not add leave message", e);
+      }
 
-    setUsername('');
     setIsAuthenticated(false);
+    setUsername('');
   }, [username]);
   
-  const handleUsernameUpdate = useCallback((newUsername: string) => {
+  const handleUsernameUpdate = (newUsername: string) => {
     setUsername(newUsername);
-  }, []);
+  };
 
-  return (
-    <div className="min-h-screen bg-slate-900 font-sans">
-      {isAuthenticated ? (
-        <ChatScreen username={username} onLogout={handleLogout} onUsernameUpdate={handleUsernameUpdate} />
-      ) : (
-        <LoginScreen onLogin={handleLogin} />
-      )}
-    </div>
-  );
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  return <ChatScreen username={username} onLogout={handleLogout} onUsernameUpdate={handleUsernameUpdate} />;
 };
 
 export default App;
