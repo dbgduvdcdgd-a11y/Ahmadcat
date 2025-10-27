@@ -8,32 +8,29 @@ interface UserManagementPanelProps {
 }
 
 const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ onClose, onUserDeleted }) => {
-    const [newUsername, setNewUsername] = useState('');
-    const [newPassword, setNewPassword] = useState('');
     const [users, setUsers] = useState<Array<{ username: string; password: string }>>([]);
+    const [referralCodes, setReferralCodes] = useState<string[]>([]);
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
-    const loadUsers = useCallback(() => {
+    const loadData = useCallback(() => {
         setUsers(authService.getUsersWithPasswords());
+        setReferralCodes(authService.getReferralCodes());
     }, []);
 
     useEffect(() => {
-        loadUsers();
-    }, [loadUsers]);
+        loadData();
+    }, [loadData]);
 
-    const handleCreateUser = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleGenerateCode = () => {
         setMessage('');
-        const result = authService.registerUser(newUsername, newPassword);
+        const result = authService.generateReferralCode();
         setMessage(result.message);
         setMessageType(result.success ? 'success' : 'error');
 
         if (result.success) {
-            setNewUsername('');
-            setNewPassword('');
-            loadUsers();
-            setTimeout(() => setMessage(''), 3000);
+            loadData(); // Refresh both users and codes
+            navigator.clipboard.writeText(result.code!);
         }
     };
     
@@ -46,7 +43,7 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ onClose, onUs
 
             if (result.success) {
                 profileService.deleteUserProfile(username);
-                loadUsers();
+                loadData();
                 onUserDeleted(username);
             }
             setTimeout(() => setMessage(''), 3000);
@@ -69,22 +66,38 @@ const UserManagementPanel: React.FC<UserManagementPanelProps> = ({ onClose, onUs
 
                 <div className="p-6 flex-1 overflow-y-auto">
                     <div className="bg-slate-900 p-4 rounded-lg">
-                        <h4 className="text-lg font-semibold text-white mb-3">توليد حساب جديد</h4>
+                        <h4 className="text-lg font-semibold text-white mb-3">توليد رمز إحالة</h4>
                         {message && <p className={`text-sm mb-3 p-2 rounded-md bg-opacity-50 ${messageColor}`}>{message}</p>}
-                        <form onSubmit={handleCreateUser} className="space-y-4">
-                            <div>
-                                <label htmlFor="newUsernameModal" className="block text-sm font-medium text-slate-300 mb-1">اسم المستخدم الجديد</label>
-                                <input type="text" id="newUsernameModal" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full px-3 py-2 border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required minLength={3} />
-                            </div>
-                             <div>
-                                <label htmlFor="newPasswordModal"  className="block text-sm font-medium text-slate-300 mb-1">كلمة المرور الجديدة</label>
-                                <input type="password" id="newPasswordModal" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-700 bg-slate-800 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required minLength={6} />
-                            </div>
-                            <button type="submit" className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 transition-colors duration-200">
-                                إنشاء حساب
-                            </button>
-                        </form>
+                         <button onClick={handleGenerateCode} className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 transition-colors duration-200">
+                            إنشاء رمز جديد ونسخه
+                        </button>
                     </div>
+
+                    <div className="mt-6">
+                        <h4 className="text-lg font-semibold text-white mb-3">الرموز النشطة ({referralCodes.length})</h4>
+                        <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                           {referralCodes.length > 0 ? referralCodes.map(code => (
+                                <div key={code} className="bg-slate-700 p-2 rounded-md text-sm flex justify-between items-center gap-2">
+                                    <span className="font-mono text-indigo-300 tracking-widest">{code}</span>
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(code);
+                                            setMessage(`تم نسخ الرمز ${code}`);
+                                            setMessageType('success');
+                                            setTimeout(() => setMessage(''), 2000);
+                                        }}
+                                        title="نسخ الرمز"
+                                        className="p-1 text-slate-400 hover:text-white transition-colors"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )) : <p className="text-sm text-slate-400">لا توجد رموز نشطة. قم بتوليد رمز جديد.</p>}
+                        </div>
+                    </div>
+
 
                     <div className="mt-6">
                         <h4 className="text-lg font-semibold text-white mb-3">المستخدمون المسجلون ({users.length})</h4>

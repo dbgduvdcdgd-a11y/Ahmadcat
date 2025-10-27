@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as authService from '../services/authService';
 
 const REMEMBERED_USER_KEY = 'rememberedUser';
 
@@ -9,9 +10,13 @@ interface LoginScreenProps {
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     const rememberedUser = localStorage.getItem(REMEMBERED_USER_KEY);
@@ -21,16 +26,67 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   }, []);
 
+  const clearFormState = () => {
+    setError('');
+    setSuccessMessage('');
+    setPassword('');
+    setConfirmPassword('');
+    setReferralCode('');
+    setLoading(false);
+  };
+
+  const handleToggleMode = () => {
+    setIsRegistering(!isRegistering);
+    clearFormState();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     setLoading(true);
-    const success = await onLogin(username, password, rememberMe);
-    if (!success) {
-      setError('اسم المستخدم أو كلمة المرور غير صحيحة.');
-      setLoading(false);
+
+    if (isRegistering) {
+        if (password !== confirmPassword) {
+            setError('كلمتا المرور غير متطابقتين.');
+            setLoading(false);
+            return;
+        }
+        
+        const result = authService.registerUser(username, password, referralCode);
+        setLoading(false);
+
+        if (result.success) {
+            setSuccessMessage(result.message + ' يمكنك الآن تسجيل الدخول.');
+            setIsRegistering(false); // Switch back to login
+            setPassword('');
+            setConfirmPassword('');
+            setReferralCode('');
+        } else {
+            setError(result.message);
+        }
+    } else { // Login logic
+        const success = await onLogin(username, password, rememberMe);
+        if (!success) {
+            setError('اسم المستخدم أو كلمة المرور غير صحيحة.');
+            setLoading(false);
+        }
+        // On success, the component will unmount, so no need to set loading to false.
     }
-    // On success, the component will unmount, so no need to set loading to false.
+  };
+
+  const formContent = isRegistering ? {
+      title: 'إنشاء حساب جديد',
+      subtitle: 'أدخل بياناتك ورمز الإحالة للانضمام',
+      buttonText: 'إنشاء حساب',
+      loadingText: 'جاري الإنشاء...',
+      toggleLinkText: 'لديك حساب بالفعل؟ تسجيل الدخول'
+  } : {
+      title: 'تسجيل الدخول إلى الدردشة',
+      subtitle: 'أدخل بياناتك للدردشة مع أصدقائك',
+      buttonText: 'تسجيل الدخول',
+      loadingText: 'جاري الدخول...',
+      toggleLinkText: 'ليس لديك حساب؟ إنشاء حساب جديد'
   };
 
   return (
@@ -38,12 +94,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       <div className="w-full max-w-md p-6 sm:p-8 space-y-8 bg-slate-800 rounded-2xl shadow-2xl m-4">
         <div className="text-center">
           <h2 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500 pb-2">الحادي عشر عينابوس</h2>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-2">تسجيل الدخول إلى الدردشة</h1>
-          <p className="mt-3 text-slate-400">أدخل بياناتك للدردشة مع أصدقائك</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-2">{formContent.title}</h1>
+          <p className="mt-3 text-slate-400">{formContent.subtitle}</p>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
           {error && <div className="p-3 text-xs sm:text-sm text-red-200 bg-red-800 bg-opacity-50 border border-red-700 rounded-md text-center">{error}</div>}
+          {successMessage && <div className="p-3 text-xs sm:text-sm text-green-200 bg-green-800 bg-opacity-50 border border-green-700 rounded-md text-center">{successMessage}</div>}
           <div>
             <label htmlFor="username" className="sr-only">اسم المستخدم</label>
             <input
@@ -59,13 +116,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               disabled={loading}
             />
           </div>
+          {isRegistering && (
+            <div>
+                <label htmlFor="referralCode" className="sr-only">رمز الإحالة</label>
+                <input
+                id="referralCode"
+                name="referralCode"
+                type="text"
+                required
+                className="appearance-none relative block w-full px-3 py-3 border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm disabled:opacity-50"
+                placeholder="رمز الإحالة"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value)}
+                disabled={loading}
+                />
+            </div>
+          )}
           <div>
             <label htmlFor="password" className="sr-only">كلمة المرور</label>
             <input
               id="password"
               name="password"
               type="password"
-              autoComplete="current-password"
+              autoComplete={isRegistering ? "new-password" : "current-password"}
               required
               className="appearance-none relative block w-full px-3 py-3 border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm disabled:opacity-50"
               placeholder="كلمة المرور"
@@ -74,20 +147,39 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               disabled={loading}
             />
           </div>
-          <div className="flex items-center">
-            <input
-              id="remember-me"
-              name="remember-me"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={loading}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
-            />
-            <label htmlFor="remember-me" className="mr-2 block text-sm text-slate-300 select-none cursor-pointer">
-              تذكرني
-            </label>
-          </div>
+          {isRegistering && (
+            <div>
+                <label htmlFor="confirm-password" className="sr-only">تأكيد كلمة المرور</label>
+                <input
+                id="confirm-password"
+                name="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                required
+                className="appearance-none relative block w-full px-3 py-3 border border-slate-700 bg-slate-900 text-slate-100 placeholder-slate-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 text-sm disabled:opacity-50"
+                placeholder="تأكيد كلمة المرور"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={loading}
+                />
+            </div>
+          )}
+          {!isRegistering && (
+            <div className="flex items-center">
+                <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={loading}
+                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+                />
+                <label htmlFor="remember-me" className="mr-2 block text-sm text-slate-300 select-none cursor-pointer">
+                تذكرني
+                </label>
+            </div>
+          )}
           <div>
             <button
               type="submit"
@@ -100,11 +192,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  جاري الدخول...
+                  {formContent.loadingText}
                 </>
               ) : (
-                'تسجيل الدخول'
+                formContent.buttonText
               )}
+            </button>
+          </div>
+           <div className="text-center">
+            <button type="button" onClick={handleToggleMode} className="text-sm font-medium text-indigo-400 hover:text-indigo-300 focus:outline-none" disabled={loading}>
+                {formContent.toggleLinkText}
             </button>
           </div>
         </form>

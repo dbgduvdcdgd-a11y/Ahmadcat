@@ -1,4 +1,5 @@
 const USERS_KEY = 'chat-app-users';
+const REFERRAL_CODES_KEY = 'chat-app-referral-codes';
 const PRIVATE_CHAT_PREFIX = 'private-chat-';
 
 // ملاحظة: هذا التنفيذ غير آمن ومخصص للأغراض التوضيحية فقط.
@@ -15,6 +16,20 @@ const getStoredUsers = (): Record<string, { password: string }> => {
 const setStoredUsers = (users: Record<string, { password: string }>) => {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
 };
+
+const getStoredReferralCodes = (): string[] => {
+    try {
+        const codes = localStorage.getItem(REFERRAL_CODES_KEY);
+        return codes ? JSON.parse(codes) : [];
+    } catch {
+        return [];
+    }
+};
+
+const setStoredReferralCodes = (codes: string[]) => {
+    localStorage.setItem(REFERRAL_CODES_KEY, JSON.stringify(codes));
+};
+
 
 const cleanupUserChats = (deletedUsername: string) => {
     Object.keys(localStorage).forEach(key => {
@@ -43,10 +58,16 @@ export const login = (username: string, password: string): boolean => {
     return !!user && user.password === password;
 };
 
-export const registerUser = (username: string, password: string): { success: boolean, message: string } => {
-    if (!username || !password) {
-        return { success: false, message: 'اسم المستخدم وكلمة المرور مطلوبان.' };
+export const registerUser = (username: string, password: string, referralCode: string): { success: boolean, message: string } => {
+    if (!username || !password || !referralCode) {
+        return { success: false, message: 'اسم المستخدم وكلمة المرور ورمز الإحالة مطلوبان.' };
     }
+
+    const codes = getStoredReferralCodes();
+    if (!codes.includes(referralCode.trim())) {
+        return { success: false, message: 'رمز الإحالة غير صالح أو تم استخدامه.' };
+    }
+
     const trimmedUsername = username.trim();
     if (trimmedUsername.length < 3) {
         return { success: false, message: 'يجب أن يكون اسم المستخدم 3 أحرف على الأقل.' };
@@ -59,10 +80,35 @@ export const registerUser = (username: string, password: string): { success: boo
     if (users[trimmedUsername]) {
         return { success: false, message: 'اسم المستخدم موجود بالفعل.' };
     }
+
+    // All checks passed, create user and remove code
     users[trimmedUsername] = { password };
     setStoredUsers(users);
+
+    const updatedCodes = codes.filter(c => c !== referralCode.trim());
+    setStoredReferralCodes(updatedCodes);
+
     return { success: true, message: `تم إنشاء المستخدم ${trimmedUsername} بنجاح.` };
 };
+
+// Admin function
+export const generateReferralCode = (): { success: boolean; code?: string; message: string } => {
+    const codes = getStoredReferralCodes();
+    let newCode: string;
+    do {
+        // Generate a 6-digit code
+        newCode = Math.floor(100000 + Math.random() * 900000).toString();
+    } while (codes.includes(newCode)); // Ensure uniqueness
+
+    codes.push(newCode);
+    setStoredReferralCodes(codes);
+    return { success: true, code: newCode, message: `تم إنشاء رمز الإحالة الجديد: ${newCode}` };
+};
+
+export const getReferralCodes = (): string[] => {
+    return getStoredReferralCodes();
+};
+
 
 export const getUsers = (): string[] => {
     const users = getStoredUsers();
