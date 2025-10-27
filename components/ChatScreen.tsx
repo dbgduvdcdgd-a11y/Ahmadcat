@@ -554,8 +554,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
 
 
   return (
-    <div className="flex h-full bg-slate-800 antialiased text-slate-200">
-        <div className="flex flex-col h-full w-full">
+    <div className="flex justify-center h-full bg-slate-900 antialiased text-slate-200">
+        <div className="flex flex-col h-full w-full max-w-3xl bg-slate-800 shadow-2xl">
             <header className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0">
                 {renderChatHeader()}
                 <div className="flex items-center gap-2">
