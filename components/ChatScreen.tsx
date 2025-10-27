@@ -262,25 +262,33 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     }, [messages, profilePictures, currentChat]);
   
   useEffect(() => {
+    // 1. Load initial messages from storage for the current chat.
     try {
-        const storedMessages = localStorage.getItem(currentChatKey);
-        setMessages(storedMessages ? (JSON.parse(storedMessages) as Message[]) : []);
-    } catch {
-        setMessages([]);
+      const storedMessagesRaw = localStorage.getItem(currentChatKey);
+      setMessages(storedMessagesRaw ? JSON.parse(storedMessagesRaw) : []);
+    } catch (e) {
+      console.error("Error loading initial messages from storage", e);
+      setMessages([]);
     }
-  }, [currentChatKey]);
-  
-  useEffect(() => {
+
+    // 2. Set up a listener for storage changes from other tabs.
     const handleStorageChange = (event: StorageEvent) => {
-        if (event.key === currentChatKey && event.newValue) {
-            try { 
-                setMessages(JSON.parse(event.newValue) as Message[]);
-            } 
-            catch (error) { console.error("Error parsing messages from storage", error); }
+      if (event.key === currentChatKey) {
+        try {
+          const newMessages = event.newValue ? JSON.parse(event.newValue) : [];
+          setMessages(newMessages);
+        } catch (e) {
+          console.error("Error parsing messages from storage event", e);
         }
+      }
     };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+
+    // 3. Clean up the listener when the component unmounts or the chat changes.
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [currentChatKey]);
 
   useEffect(() => {
@@ -542,8 +550,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
         }
 
         try {
-            const currentMessages: Message[] = JSON.parse(localStorage.getItem(currentChatKey) || '[]');
-            const updatedMessages = currentMessages.filter(m => m.id !== messageId);
+            const updatedMessages = messages.filter(m => m.id !== messageId);
             localStorage.setItem(currentChatKey, JSON.stringify(updatedMessages));
             setMessages(updatedMessages);
             setPopoverMessageId(null);
