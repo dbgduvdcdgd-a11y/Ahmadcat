@@ -104,12 +104,23 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [popoverMessageId, setPopoverMessageId] = useState<string | null>(null);
   const [isMainMenuOpen, setIsMainMenuOpen] = useState(false);
+  
+  // Call state
+  const [callInfo, setCallInfo] = useState<{ active: boolean; type: 'video' | 'audio'; targetUser: string } | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [callTimer, setCallTimer] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageRefs = useRef(new Map<string, HTMLDivElement>());
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const callTimerIntervalRef = useRef<number | null>(null);
+
 
   const getChatKey = useCallback((target: ChatTarget): string => {
     if (target.type === 'group') {
@@ -130,8 +141,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   }, [messages]);
 
     useEffect(() => {
-        // FIX: Because messages are parsed from JSON, the compiler infers `m.sender` as `any` or `unknown`.
-        // We cast the filtered array to `string[]` to ensure type safety for subsequent operations.
         const senders = ([...new Set(messages.map(m => m.sender))].filter(s => typeof s === 'string' && s !== 'System')) as string[];
         
         if (currentChat.type === 'private' && !senders.includes(currentChat.with)) {
@@ -173,7 +182,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [currentChatKey]);
 
-  // Close popover when clicking away
   useEffect(() => {
     const closePopovers = () => {
         setPopoverMessageId(null);
@@ -185,14 +193,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     return () => {
         document.removeEventListener('click', closePopovers);
     };
-}, [popoverMessageId, isMainMenuOpen]);
+  }, [popoverMessageId, isMainMenuOpen]);
+
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+        localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
 
   const addNewMessage = useCallback((message: Message) => {
     try {
         const currentMessages: Message[] = JSON.parse(localStorage.getItem(currentChatKey) || '[]');
         const updatedMessages = [...currentMessages, message];
         localStorage.setItem(currentChatKey, JSON.stringify(updatedMessages));
-        // Manually update state for the sender's screen
         setMessages(updatedMessages);
     } catch (e) {
         console.error("Could not send message", e);
@@ -218,7 +231,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     }
   }, [currentChat.type]);
 
-
   const sendMessage = () => {
     if (!newMessage.trim() && !replyingTo) return;
     const message: Message = {
@@ -231,6 +243,17 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     setNewMessage('');
     setReplyingTo(null);
   };
+  
+  const handleReplyClick = (messageId: string) => {
+        const messageElement = messageRefs.current.get(messageId);
+        if (messageElement) {
+            messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageElement.classList.add('highlight-message');
+            setTimeout(() => {
+                messageElement.classList.remove('highlight-message');
+            }, 1500);
+        }
+    };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -251,14 +274,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             id: Date.now().toString(),
             sender: username,
             file: { name: file.name, type, url },
-            text: newMessage, // Add current text as caption
+            text: newMessage,
         };
         addNewMessage(message);
-        setNewMessage(''); // Clear input after sending
+        setNewMessage('');
     };
     reader.readAsDataURL(file);
     
-    // Reset file input
     if(fileInputRef.current) {
         fileInputRef.current.value = '';
     }
@@ -267,20 +289,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     const handleLogout = async () => {
         setIsLoggingOut(true);
         await onLogout();
-        // This component will unmount, so no need to setIsLoggingOut(false)
     };
 
     const handleProfileUpdate = (newUsername: string) => {
-        // Renaming in profiles
         profileService.renameUserProfile(username, newUsername);
-        
-        // Update app's state
         onUsernameUpdate(newUsername);
-
-        // Update local state for avatar
         setAvatar(profileService.getProfilePicture(newUsername));
-        
-        // Force refresh profile pictures cache in state
         setProfilePictures(prev => {
             const newPics = {...prev};
             if(newPics[username]) {
@@ -290,7 +304,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             return newPics;
         });
 
-        // Add a system message about the name change
         if (currentChat.type === 'group') {
             const systemMessage: Message = {
                 id: Date.now().toString(),
@@ -300,12 +313,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             addNewMessage(systemMessage);
         }
         
-        setIsProfilePanelOpen(false); // Close panel on success
+        setIsProfilePanelOpen(false);
     };
 
     const handleUserDeleted = (deletedUsername: string) => {
         addGroupSystemMessage(`المسؤول حذف المستخدم ${deletedUsername}`);
-        // Clean up profile picture cache
         setProfilePictures(prev => {
             const newPics = {...prev};
             if (newPics[deletedUsername]) {
@@ -335,7 +347,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                     file: { name: 'voice-message.wav', type: 'audio', url: audioUrl }
                 };
                 addNewMessage(message);
-                 // Stop all tracks to turn off microphone indicator
                 stream.getTracks().forEach(track => track.stop());
             };
 
@@ -373,10 +384,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     };
 
     const handleMessageLongPressStart = (message: Message) => {
-        if (message.sender === 'System') return; // Don't show menu for system messages
+        if (message.sender === 'System') return;
         longPressTimerRef.current = setTimeout(() => {
             setPopoverMessageId(message.id);
-        }, 500); // 500ms for a long press
+        }, 500);
     };
 
     const handleMessageLongPressEnd = () => {
@@ -421,7 +432,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
         if (!messageToDelete) return;
 
         if (messageToDelete.sender !== username && username !== 'admin') {
-            return; // Should not happen due to UI, but for safety
+            return;
         }
         
         if (!window.confirm('هل أنت متأكد من حذف هذه الرسالة؟ سيتم حذفها لدى الجميع.')) {
@@ -434,7 +445,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             const updatedMessages = currentMessages.filter(m => m.id !== messageId);
             localStorage.setItem(currentChatKey, JSON.stringify(updatedMessages));
             setMessages(updatedMessages);
-            setPopoverMessageId(null); // Close the popover
+            setPopoverMessageId(null);
         } catch (e) {
             console.error("Could not delete message", e);
         }
@@ -445,6 +456,67 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
       return messages.find(m => m.id === replyToId);
   }
   
+  // --- Call Feature Functions ---
+
+    const startCall = async (type: 'video' | 'audio') => {
+        if (currentChat.type === 'group') {
+            alert('ميزة المكالمات الجماعية غير مدعومة حاليًا.');
+            return;
+        }
+        const targetUser = currentChat.with;
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: type === 'video',
+                audio: true,
+            });
+            setLocalStream(stream);
+            setCallInfo({ active: true, type, targetUser });
+            
+            callTimerIntervalRef.current = window.setInterval(() => {
+                setCallTimer(prev => prev + 1);
+            }, 1000);
+
+        } catch (err) {
+            console.error("Error accessing media devices.", err);
+            setFileError("لا يمكن الوصول إلى الكاميرا أو الميكروفون.");
+            setTimeout(() => setFileError(''), 3000);
+        }
+    };
+
+    const endCall = () => {
+        localStream?.getTracks().forEach(track => track.stop());
+        setLocalStream(null);
+        setCallInfo(null);
+        if (callTimerIntervalRef.current) {
+            clearInterval(callTimerIntervalRef.current);
+        }
+        setCallTimer(0);
+        setIsMuted(false);
+        setIsCameraOff(false);
+    };
+
+    const toggleMute = () => {
+        if (localStream) {
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = !track.enabled;
+            });
+            setIsMuted(prev => !prev);
+        }
+    };
+    
+    const toggleCamera = () => {
+        if (localStream && callInfo?.type === 'video') {
+            localStream.getVideoTracks().forEach(track => {
+                track.enabled = !track.enabled;
+            });
+            setIsCameraOff(prev => !prev);
+        }
+    };
+
+    const formatTime = (seconds: number) => new Date(seconds * 1000).toISOString().substr(14, 5);
+
+
     const renderChatHeader = () => {
         if (currentChat.type === 'group') {
             return (
@@ -487,12 +559,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             <header className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0">
                 {renderChatHeader()}
                 <div className="flex items-center gap-2">
-                    <button className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة صوتية" onClick={() => alert('ميزة المكالمات الصوتية قيد التطوير!')}>
+                    <button onClick={() => startCall('audio')} className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة صوتية">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                         </svg>
                     </button>
-                    <button className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة فيديو" onClick={() => alert('ميزة مكالمات الفيديو قيد التطوير!')}>
+                    <button onClick={() => startCall('video')} className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة فيديو">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 001.553.832l3-2a1 1 0 000-1.664l-3-2z" />
                         </svg>
@@ -500,7 +572,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 </div>
             </header>
 
-            {/* Messages */}
             <main className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => { setPopoverMessageId(null); setIsMainMenuOpen(false); }}>
                 {messages.map((msg) => (
                     msg.sender === 'System' ? (
@@ -508,13 +579,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                            {msg.text}
                         </div>
                     ) : (
-                        <div key={msg.id} className={`flex items-start gap-3 ${msg.sender === username ? 'flex-row-reverse' : ''}`}
-                            onTouchStart={(e) => { e.stopPropagation(); handleMessageLongPressStart(msg); }}
-                            onTouchEnd={handleMessageLongPressEnd}
-                            onMouseDown={(e) => { e.stopPropagation(); handleMessageLongPressStart(msg); }}
-                            onMouseUp={handleMessageLongPressEnd}
-                            onMouseLeave={handleMessageLongPressEnd}
-                            onContextMenu={(e) => e.preventDefault()}
+                        <div key={msg.id}
+                            ref={node => { if (node) messageRefs.current.set(msg.id, node); else messageRefs.current.delete(msg.id); }}
+                            className={`flex items-start gap-3 ${msg.sender === username ? 'flex-row-reverse' : ''}`}
                         >
                             <div className="flex-shrink-0">
                                 {profilePictures[msg.sender] ? (
@@ -548,11 +615,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                                     </div>
                                 )}
 
-                                <div className={`px-4 py-2 rounded-2xl ${msg.sender === username ? 'bg-indigo-600 rounded-br-none' : 'bg-slate-700 rounded-bl-none'} select-none`}>
+                                <div 
+                                    className={`px-4 py-2 rounded-2xl select-none ${msg.sender === username ? 'bg-indigo-600 rounded-br-none' : 'bg-slate-700 rounded-bl-none'}`}
+                                    onTouchStart={(e) => { e.stopPropagation(); handleMessageLongPressStart(msg); }}
+                                    onTouchEnd={handleMessageLongPressEnd}
+                                    onMouseDown={(e) => { e.stopPropagation(); handleMessageLongPressStart(msg); }}
+                                    onMouseUp={handleMessageLongPressEnd}
+                                    onMouseLeave={handleMessageLongPressEnd}
+                                    onContextMenu={(e) => e.preventDefault()}
+                                >
                                     <span className={`text-xs font-bold ${msg.sender === username ? 'text-indigo-200' : 'text-slate-400'} block mb-1`}>{msg.sender}</span>
                                     
                                     {getReplyingToMessage(msg.replyTo) && (
-                                        <div className="mb-2 p-2 border-r-2 border-indigo-400 bg-black/20 rounded-md opacity-80">
+                                        <div className="mb-2 p-2 border-r-2 border-indigo-400 bg-black/20 rounded-md opacity-80 cursor-pointer" onClick={() => handleReplyClick(getReplyingToMessage(msg.replyTo)!.id)}>
                                             <p className="text-xs font-bold text-indigo-300">{getReplyingToMessage(msg.replyTo)?.sender}</p>
                                             <p className="text-xs text-slate-300 truncate">{getMessageSnippet(getReplyingToMessage(msg.replyTo)!)}</p>
                                         </div>
@@ -563,7 +638,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                                 {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                                     <div className={`flex gap-1.5 mt-1.5 flex-wrap ${msg.sender === username ? 'justify-end' : 'justify-start'}`}>
                                         {Object.entries(msg.reactions).map(([emoji, senders]) => {
-                                            // FIX: Cast senders to string[] to resolve TypeScript error where it's inferred as 'unknown'.
                                             const senderList = senders as string[];
                                             if (senderList.length === 0) {
                                                 return null;
@@ -588,7 +662,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 {fileError}
             </div>}
 
-            {/* Reply Preview */}
             {replyingTo && (
                 <div className="p-2 border-t border-slate-700 bg-slate-900/50">
                     <div className="bg-slate-700 rounded-lg p-2 flex items-center justify-between">
@@ -603,7 +676,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 </div>
             )}
 
-            {/* Footer / Input */}
             <footer className="p-3 border-t border-slate-700 bg-slate-900 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="relative">
@@ -674,12 +746,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             </footer>
         </div>
 
-        {/* Panels */}
         {isProfilePanelOpen && <ProfileSettingsPanel username={username} onClose={() => setIsProfilePanelOpen(false)} onUsernameChangeSuccess={handleProfileUpdate} onAccountDeleted={handleLogout} onAvatarUpdate={() => setAvatar(profileService.getProfilePicture(username))} />}
         {isUserPanelOpen && <UserManagementPanel onClose={() => setIsUserPanelOpen(false)} onUserDeleted={handleUserDeleted} />}
         {isUserListOpen && <UserListPanel currentUser={username} onClose={() => setIsUserListOpen(false)} onSelectChat={setCurrentChat} />}
         
-        {/* Media Viewer */}
         {viewingMedia && (
             <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4" onClick={() => setViewingMedia(null)}>
                 <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
@@ -692,6 +762,54 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                     <a href={viewingMedia.url} download={viewingMedia.name} className="absolute bottom-2 right-2 bg-slate-700 text-white py-1 px-3 rounded-md text-sm hover:bg-slate-600">
                         تنزيل
                     </a>
+                </div>
+            </div>
+        )}
+
+        {/* Call UI */}
+        {callInfo?.active && (
+            <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center text-white p-4">
+                <div className="absolute top-4 right-4 w-24 h-32 md:w-32 md:h-44 bg-slate-800 rounded-lg overflow-hidden border-2 border-slate-600 shadow-lg">
+                    <video ref={localVideoRef} autoPlay muted className={`w-full h-full object-cover transform -scale-x-100 ${isCameraOff ? 'hidden' : ''}`}></video>
+                    {isCameraOff && (
+                        <div className="w-full h-full flex items-center justify-center bg-black">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-col items-center justify-center flex-1">
+                    {profilePictures[callInfo.targetUser] ? (
+                        <img src={profilePictures[callInfo.targetUser]!} alt={callInfo.targetUser} className="w-32 h-32 rounded-full object-cover border-4 border-slate-500 shadow-2xl mb-4" />
+                    ) : (
+                        <div className={`w-32 h-32 rounded-full ${nameToColor(callInfo.targetUser)} flex items-center justify-center font-bold text-white text-5xl border-4 border-slate-500 shadow-2xl mb-4`}>
+                            {callInfo.targetUser.charAt(0).toUpperCase()}
+                        </div>
+                    )}
+                    <h2 className="text-3xl font-bold">{callInfo.targetUser}</h2>
+                    <p className="text-lg text-slate-300 mt-2">{formatTime(callTimer)}</p>
+                </div>
+                
+                <div className="flex items-center gap-6 p-4 bg-slate-800/50 rounded-full">
+                    <button onClick={toggleMute} className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-white text-slate-800' : 'bg-slate-700 hover:bg-slate-600'}`} aria-label={isMuted ? 'إلغاء كتم الصوت' : 'كتم الصوت'}>
+                        {isMuted ? (
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" /></svg>
+                        )}
+                    </button>
+                    {callInfo.type === 'video' && (
+                         <button onClick={toggleCamera} className={`p-3 rounded-full transition-colors ${isCameraOff ? 'bg-white text-slate-800' : 'bg-slate-700 hover:bg-slate-600'}`} aria-label={isCameraOff ? 'تشغيل الكاميرا' : 'إيقاف الكاميرا'}>
+                            {isCameraOff ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M1 18l4-4m-4 4l4 4" /></svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            )}
+                        </button>
+                    )}
+                    <button onClick={endCall} className="p-4 rounded-full bg-red-600 hover:bg-red-700 transition-colors" aria-label="إنهاء المكالمة">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                    </button>
                 </div>
             </div>
         )}

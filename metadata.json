@@ -2,6 +2,7 @@
   "name": "تطبيق الدردشة الجماعية",
   "description": "تطبيق دردشة جماعية لمراسلة الأصدقاء، مع مزامنة الرسائل عبر التبويبات.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }
