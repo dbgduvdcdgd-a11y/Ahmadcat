@@ -50,37 +50,6 @@ const getMessageSnippet = (message: Message): string => {
 };
 
 
-const MessageContent: React.FC<{ message: Message; onViewMedia: (file: MessageFile) => void; }> = ({ message, onViewMedia }) => {
-    return (
-        <div className="flex flex-col gap-2">
-             {message.sticker && (
-                <img src={message.sticker} alt="ملصق" className="w-24 h-24 object-contain" />
-            )}
-            {message.file && (
-                message.file.type === 'audio' ? (
-                     <audio controls src={message.file.url} className="w-full" />
-                ) : (
-                    <div 
-                        className="cursor-pointer"
-                        onClick={() => onViewMedia(message.file!)}
-                    >
-                        {message.file.type === 'image' ? (
-                            <img src={message.file.url} alt={message.file.name} className="max-w-full h-auto rounded-lg" />
-                        ) : (
-                            <video src={message.file.url} className="max-w-full h-auto rounded-lg" />
-                        )}
-                    </div>
-                )
-            )}
-            {message.text && (
-                <p className="text-sm whitespace-pre-wrap break-words">
-                    {linkify(message.text)}
-                </p>
-            )}
-        </div>
-    );
-};
-
 interface ChatScreenProps {
   username: string;
   onLogout: () => Promise<void>;
@@ -121,6 +90,134 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const callTimerIntervalRef = useRef<number | null>(null);
 
+  const CustomAudioPlayer: React.FC<{ url: string; sender: string; }> = ({ url, sender }) => {
+    const audioRef = useRef<HTMLAudioElement>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [duration, setDuration] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    const progressBarRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        
+        const setAudioData = () => {
+            if (isFinite(audio.duration)) {
+                setDuration(audio.duration);
+            }
+            setCurrentTime(audio.currentTime);
+        };
+        const setAudioTime = () => setCurrentTime(audio.currentTime);
+        const onEnded = () => setIsPlaying(false);
+
+        audio.addEventListener('loadeddata', setAudioData);
+        audio.addEventListener('timeupdate', setAudioTime);
+        audio.addEventListener('ended', onEnded);
+        
+        if(audio.readyState > 0 && isFinite(audio.duration)) {
+            setDuration(audio.duration);
+        }
+
+        return () => {
+            audio.removeEventListener('loadeddata', setAudioData);
+            audio.removeEventListener('timeupdate', setAudioTime);
+            audio.removeEventListener('ended', onEnded);
+        };
+    }, [url]);
+    
+    const togglePlayPause = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const audio = audioRef.current;
+        if (!audio) return;
+        if (isPlaying) {
+            audio.pause();
+        } else {
+            audio.play().catch(err => console.error("Audio play failed", err));
+        }
+        setIsPlaying(!isPlaying);
+    };
+
+    const formatTime = (time: number) => {
+        if (!isFinite(time) || time < 0) return '0:00';
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+
+    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.stopPropagation();
+        const audio = audioRef.current;
+        const progressDiv = progressBarRef.current;
+        if (audio && progressDiv && isFinite(duration)) {
+            const rect = progressDiv.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percentage = Math.max(0, Math.min(1, clickX / rect.width));
+            const newTime = duration * percentage;
+            audio.currentTime = newTime;
+            setCurrentTime(newTime);
+        }
+    };
+
+    const progress = duration > 0 && isFinite(duration) ? (currentTime / duration) * 100 : 0;
+    
+    const isMe = sender === username;
+    const buttonColor = isMe ? 'bg-indigo-400 hover:bg-indigo-300 text-indigo-800' : 'bg-slate-500 hover:bg-slate-400 text-white';
+    const progressBgColor = isMe ? 'bg-white/80' : 'bg-indigo-400';
+    const progressDotColor = isMe ? 'bg-white' : 'bg-indigo-300';
+    const progressTrackColor = isMe ? 'bg-indigo-500/70' : 'bg-slate-600';
+    const textColor = isMe ? 'text-indigo-200' : 'text-slate-400';
+
+    return (
+        <div className="flex items-center gap-2" style={{width: '240px'}}>
+            <audio ref={audioRef} src={url} preload="metadata" />
+            <button onClick={togglePlayPause} className={`p-2 rounded-full flex-shrink-0 focus:outline-none transition-colors ${buttonColor}`}>
+                {isPlaying ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                )}
+            </button>
+            <div className="flex-grow flex items-center h-full">
+                <div ref={progressBarRef} onClick={handleProgressClick} className={`w-full h-1 rounded-full cursor-pointer relative ${progressTrackColor}`}>
+                    <div className={`${progressBgColor} h-1 rounded-full`} style={{ width: `${progress}%` }}></div>
+                    <div className={`absolute top-1/2 h-3 w-3 ${progressDotColor} rounded-full shadow`} style={{ left: `${progress}%`, transform: `translate(-50%, -50%)` }}></div>
+                </div>
+            </div>
+            <span className={`text-xs w-12 text-right tabular-nums ${textColor}`}>{formatTime(duration)}</span>
+        </div>
+    );
+  };
+
+  const MessageContent: React.FC<{ message: Message; onViewMedia: (file: MessageFile) => void; }> = ({ message, onViewMedia }) => {
+    return (
+        <div className="flex flex-col gap-2">
+             {message.sticker && (
+                <img src={message.sticker} alt="ملصق" className="w-24 h-24 object-contain" />
+            )}
+            {message.file && (
+                message.file.type === 'audio' ? (
+                     <CustomAudioPlayer url={message.file.url} sender={message.sender} />
+                ) : (
+                    <div 
+                        className="cursor-pointer"
+                        onClick={() => onViewMedia(message.file!)}
+                    >
+                        {message.file.type === 'image' ? (
+                            <img src={message.file.url} alt={message.file.name} className="max-w-full h-auto rounded-lg" />
+                        ) : (
+                            <video src={message.file.url} className="max-w-full h-auto rounded-lg" />
+                        )}
+                    </div>
+                )
+            )}
+            {message.text && (
+                <p className="text-sm whitespace-pre-wrap break-words">
+                    {linkify(message.text)}
+                </p>
+            )}
+        </div>
+    );
+  };
 
   const getChatKey = useCallback((target: ChatTarget): string => {
     if (target.type === 'group') {
