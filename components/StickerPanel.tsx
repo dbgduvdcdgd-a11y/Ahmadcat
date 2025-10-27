@@ -8,9 +8,9 @@ interface StickerPanelProps {
 
 const StickerPanel: React.FC<StickerPanelProps> = ({ onSelectSticker, onClose }) => {
   return (
-    <div className="w-64 p-2 bg-slate-700 rounded-lg shadow-2xl flex flex-col">
+    <div className="w-60 p-2 bg-slate-700 rounded-lg shadow-2xl flex flex-col">
       <div className="pr-1">
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-1">
             {stickers.map((url) => (
                 <button 
                     key={url} 

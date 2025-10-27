@@ -54,7 +54,7 @@ const MessageContent: React.FC<{ message: Message; onViewMedia: (file: MessageFi
     return (
         <div className="flex flex-col gap-2">
              {message.sticker && (
-                <img src={message.sticker} alt="ملصق" className="w-28 h-28 object-contain" />
+                <img src={message.sticker} alt="ملصق" className="w-24 h-24 object-contain" />
             )}
             {message.file && (
                 message.file.type === 'audio' ? (
@@ -554,8 +554,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
 
 
   return (
-    <div className="flex justify-center h-full bg-slate-900 antialiased text-slate-200">
-        <div className="flex flex-col h-full w-full max-w-3xl bg-slate-800 shadow-2xl">
+    <div className="flex justify-center items-center h-full bg-slate-900 antialiased text-slate-200 p-2 sm:p-4">
+        <div className="flex flex-col h-full w-full max-w-3xl bg-slate-800 shadow-2xl rounded-2xl overflow-hidden">
             <header className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0">
                 {renderChatHeader()}
                 <div className="flex items-center gap-2">
