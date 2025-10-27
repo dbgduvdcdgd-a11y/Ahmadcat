@@ -130,7 +130,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   }, [messages]);
 
     useEffect(() => {
-        const senders: string[] = [...new Set<string>(messages.map(m => m.sender))].filter(s => s !== 'System');
+        // FIX: Because messages are parsed from JSON, the compiler infers `m.sender` as `any` or `unknown`.
+        // We cast the filtered array to `string[]` to ensure type safety for subsequent operations.
+        const senders = ([...new Set(messages.map(m => m.sender))].filter(s => typeof s === 'string' && s !== 'System')) as string[];
+        
+        if (currentChat.type === 'private' && !senders.includes(currentChat.with)) {
+            senders.push(currentChat.with);
+        }
+
         const picsToFetch: Record<string, string | null> = {};
         let needsUpdate = false;
         for (const sender of senders) {
@@ -142,7 +149,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
         if (needsUpdate) {
             setProfilePictures(prev => ({ ...prev, ...picsToFetch }));
         }
-    }, [messages, profilePictures]);
+    }, [messages, profilePictures, currentChat]);
   
   useEffect(() => {
     try {
@@ -288,7 +295,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             const systemMessage: Message = {
                 id: Date.now().toString(),
                 sender: 'System',
-                text: `${username} غير اسمه إلى ${newUsername}`
+                text: `غير ${username} اسمه إلى ${newUsername}`
             };
             addNewMessage(systemMessage);
         }
@@ -437,10 +444,61 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
       if (!replyToId) return undefined;
       return messages.find(m => m.id === replyToId);
   }
+  
+    const renderChatHeader = () => {
+        if (currentChat.type === 'group') {
+            return (
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-500 flex-shrink-0 flex items-center justify-center font-bold text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 className="font-bold text-white">مجموعة الأصدقاء</h2>
+                        <p className="text-sm text-slate-400">الدردشة العامة</p>
+                    </div>
+                </div>
+            );
+        } else { // private chat
+            const otherUser = currentChat.with;
+            const otherUserAvatar = profilePictures[otherUser];
+            return (
+                <div className="flex items-center gap-3">
+                    {otherUserAvatar ? (
+                        <img src={otherUserAvatar} alt={otherUser} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                        <div className={`w-10 h-10 rounded-full ${nameToColor(otherUser)} flex items-center justify-center font-bold text-white text-lg`}>
+                            {otherUser.charAt(0).toUpperCase()}
+                        </div>
+                    )}
+                    <div>
+                        <h2 className="font-bold text-white">{otherUser}</h2>
+                    </div>
+                </div>
+            );
+        }
+    };
+
 
   return (
     <div className="flex h-full bg-slate-800 antialiased text-slate-200">
         <div className="flex flex-col h-full w-full">
+            <header className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0">
+                {renderChatHeader()}
+                <div className="flex items-center gap-2">
+                    <button className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة صوتية" onClick={() => alert('ميزة المكالمات الصوتية قيد التطوير!')}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                           <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                        </svg>
+                    </button>
+                    <button className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة فيديو" onClick={() => alert('ميزة مكالمات الفيديو قيد التطوير!')}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                           <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 001.553.832l3-2a1 1 0 000-1.664l-3-2z" />
+                        </svg>
+                    </button>
+                </div>
+            </header>
 
             {/* Messages */}
             <main className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => { setPopoverMessageId(null); setIsMainMenuOpen(false); }}>
@@ -456,6 +514,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                             onMouseDown={(e) => { e.stopPropagation(); handleMessageLongPressStart(msg); }}
                             onMouseUp={handleMessageLongPressEnd}
                             onMouseLeave={handleMessageLongPressEnd}
+                            onContextMenu={(e) => e.preventDefault()}
                         >
                             <div className="flex-shrink-0">
                                 {profilePictures[msg.sender] ? (
@@ -489,7 +548,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                                     </div>
                                 )}
 
-                                <div className={`px-4 py-2 rounded-2xl ${msg.sender === username ? 'bg-indigo-600 rounded-br-none' : 'bg-slate-700 rounded-bl-none'}`}>
+                                <div className={`px-4 py-2 rounded-2xl ${msg.sender === username ? 'bg-indigo-600 rounded-br-none' : 'bg-slate-700 rounded-bl-none'} select-none`}>
                                     <span className={`text-xs font-bold ${msg.sender === username ? 'text-indigo-200' : 'text-slate-400'} block mb-1`}>{msg.sender}</span>
                                     
                                     {getReplyingToMessage(msg.replyTo) && (
@@ -525,138 +584,114 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                 <div ref={messagesEndRef} />
             </main>
             
-            {fileError && <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-red-800 text-red-100 text-sm px-4 py-2 rounded-md shadow-lg">{fileError}</div>}
+            {fileError && <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-red-800 text-red-100 text-sm p-3 rounded-lg shadow-lg animate-pulse">
+                {fileError}
+            </div>}
 
-
-            {/* Input */}
-            <footer className="p-3 border-t border-slate-700 bg-slate-900 flex-shrink-0">
-                {replyingTo && (
-                    <div className="mb-2 flex justify-between items-center p-2 bg-slate-800 rounded-md">
+            {/* Reply Preview */}
+            {replyingTo && (
+                <div className="p-2 border-t border-slate-700 bg-slate-900/50">
+                    <div className="bg-slate-700 rounded-lg p-2 flex items-center justify-between">
                         <div className="flex-1 overflow-hidden">
-                           <p className="text-xs font-bold text-indigo-300">الرد على {replyingTo.sender}</p>
-                           <p className="text-sm text-slate-300 truncate">{getMessageSnippet(replyingTo)}</p>
+                            <p className="text-sm font-bold text-indigo-300">ترد على {replyingTo.sender}</p>
+                            <p className="text-xs text-slate-300 truncate">{getMessageSnippet(replyingTo)}</p>
                         </div>
-                        <button onClick={() => setReplyingTo(null)} className="p-1 text-slate-400 hover:text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                        <button onClick={() => setReplyingTo(null)} className="p-1 rounded-full hover:bg-slate-600 text-slate-400">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                         </button>
                     </div>
-                )}
-                <div className="relative flex items-center gap-2">
-                    <div className="relative">
-                         <button onClick={(e) => { e.stopPropagation(); setIsMainMenuOpen(prev => !prev); }} className="p-2 rounded-full hover:bg-slate-700 transition-colors">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                             </svg>
-                         </button>
-                         {isMainMenuOpen && (
-                            <div onClick={e => e.stopPropagation()} className="absolute bottom-full mb-2 right-0 md:left-0 md:right-auto w-56 origin-bottom-right md:origin-bottom-left rounded-md bg-slate-700 shadow-lg ring-1 ring-black ring-opacity-5 z-30">
-                                <div className="py-1">
-                                    <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-600">
-                                        {avatar ? (
-                                            <img src={avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />
-                                        ) : (
-                                            <div className={`w-10 h-10 rounded-full ${nameToColor(username)} flex items-center justify-center font-bold text-white text-lg`}>
-                                                {username.charAt(0).toUpperCase()}
-                                            </div>
-                                        )}
-                                        <span className="font-semibold truncate text-white">{username}</span>
-                                    </div>
-                                    <button onClick={() => { setIsUserListOpen(true); setIsMainMenuOpen(false); }} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600">المحادثات</button>
-                                    <button onClick={() => { setIsProfilePanelOpen(true); setIsMainMenuOpen(false); }} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600">إعدادات الحساب</button>
-                                    {username === 'admin' && <button onClick={() => { setIsUserPanelOpen(true); setIsMainMenuOpen(false); }} className="text-slate-100 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600">إدارة المستخدمين</button>}
-                                    <div className="border-t border-slate-600 my-1"></div>
-                                    <button onClick={() => { handleLogout(); setIsMainMenuOpen(false); }} disabled={isLoggingOut} className="text-red-400 block w-full text-right px-4 py-2 text-sm hover:bg-slate-600 disabled:opacity-50">
-                                        {isLoggingOut ? 'جاري الخروج...' : 'تسجيل الخروج'}
-                                    </button>
-                                </div>
-                            </div>
-                         )}
-                    </div>
+                </div>
+            )}
+
+            {/* Footer / Input */}
+            <footer className="p-3 border-t border-slate-700 bg-slate-900 flex-shrink-0">
+                <div className="flex items-center gap-3">
                     <div className="relative">
                         <button 
-                            onClick={(e) => { e.stopPropagation(); setIsStickerPanelOpen(prev => !prev) }}
+                            onClick={(e) => {e.stopPropagation(); setIsMainMenuOpen(prev => !prev)}}
                             className="p-2 rounded-full hover:bg-slate-700 transition-colors"
-                            aria-label="إرسال ملصق"
                         >
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a.5.5 0 01.707 0 5 5 0 01-7.07 0 .5.5 0 01.707-.707 4 4 0 005.656 0 .5.5 0 01.707.707z" clipRule="evenodd" />
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v1.034l3.758-1.879a1 1 0 011.242 1.664l-3.033 6.066a1 1 0 01-1.112.51l-4.25-1.417a1 1 0 01-.483-1.326l2.5-4.166A1 1 0 0110 3z" clipRule="evenodd" /><path fillRule="evenodd" d="M10 3a1 1 0 01-1 1v1.034l-3.758-1.879a1 1 0 00-1.242 1.664l3.033 6.066a1 1 0 001.112.51l4.25-1.417a1 1 0 00.483-1.326l-2.5-4.166A1 1 0 0010 3z" clipRule="evenodd" /></svg>
+                        </button>
+                        {isMainMenuOpen && (
+                             <div className="absolute bottom-full right-0 mb-2 w-48 bg-slate-700 rounded-lg shadow-2xl p-2 z-30" onClick={(e) => e.stopPropagation()}>
+                                <button onClick={() => { setIsProfilePanelOpen(true); setIsMainMenuOpen(false); }} className="w-full text-right px-3 py-2 text-sm rounded-md hover:bg-slate-600 flex items-center gap-3">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" /></svg>
+                                    <span>الملف الشخصي</span>
+                                </button>
+                                {username === 'admin' && (
+                                    <button onClick={() => { setIsUserPanelOpen(true); setIsMainMenuOpen(false); }} className="w-full text-right px-3 py-2 text-sm rounded-md hover:bg-slate-600 flex items-center gap-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0110 14.07a5 5 0 01-2.43.93A6.97 6.97 0 006 16c0 .34.024.673.07 1h6.86z" /></svg>
+                                        <span>إدارة الحسابات</span>
+                                    </button>
+                                )}
+                                <button onClick={() => { setIsUserListOpen(true); setIsMainMenuOpen(false); }} className="w-full text-right px-3 py-2 text-sm rounded-md hover:bg-slate-600 flex items-center gap-3">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" /></svg>
+                                    <span>مستخدمون آخرون</span>
+                                </button>
+                                <div className="my-1 border-t border-slate-600"></div>
+                                <button onClick={handleLogout} className="w-full text-right px-3 py-2 text-sm rounded-md hover:bg-slate-600 text-red-400 flex items-center gap-3" disabled={isLoggingOut}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" /></svg>
+                                    <span>{isLoggingOut ? 'جاري الخروج...' : 'تسجيل الخروج'}</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <input type="text" placeholder="اكتب رسالة..." className="w-full bg-slate-800 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage()} />
+                    
+                    {newMessage ? (
+                        <button onClick={sendMessage} className="p-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transform rotate-180" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" /></svg>
+                        </button>
+                    ) : (
+                        isRecording ? (
+                            <button onClick={stopRecording} className="p-2 rounded-full bg-red-600 hover:bg-red-700 text-white animate-pulse">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+                            </button>
+                        ) : (
+                             <button onMouseDown={startRecording} onMouseUp={stopRecording} onTouchStart={startRecording} onTouchEnd={stopRecording} className="p-2 rounded-full bg-slate-700 hover:bg-slate-600 text-white transition-colors" aria-label="تسجيل رسالة صوتية">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" /></svg>
+                            </button>
+                        )
+                    )}
+
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
+                    <div className="relative">
+                        <button onClick={() => setIsStickerPanelOpen(p => !p)} className="p-2 rounded-full hover:bg-slate-700 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a1 1 0 10-1.415-1.414 3 3 0 01-4.242 0 1 1 0 00-1.415 1.414 5 5 0 007.072 0z" clipRule="evenodd" /></svg>
                         </button>
                         {isStickerPanelOpen && (
-                            <div className="absolute bottom-full mb-2 left-0 z-20" onClick={e => e.stopPropagation()}>
+                            <div className="absolute bottom-full right-0 mb-2 z-30">
                                 <StickerPanel onSelectSticker={handleSendSticker} onClose={() => setIsStickerPanelOpen(false)} />
                             </div>
                         )}
                     </div>
-                     <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        accept="image/*,video/*"
-                    />
-                    <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="إرفاق ملف">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                    <input
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                        placeholder="اكتب رسالة..."
-                        className="w-full bg-slate-800 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    {isRecording ? (
-                        <button onClick={stopRecording} className="p-2 rounded-full bg-red-600 text-white animate-pulse" aria-label="إيقاف التسجيل">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                        </button>
-                    ) : (
-                         <button onClick={startRecording} className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="تسجيل رسالة صوتية">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-                                <path d="M5.5 11.5a.5.5 0 01.5-.5h8a.5.5 0 010 1h-8a.5.5 0 01-.5-.5z" />
-                                <path d="M3 8a1 1 0 000 2h1v2a4 4 0 008 0V10h1a1 1 0 100-2H3z" />
-                            </svg>
-                        </button>
-                    )}
-                    <button onClick={sendMessage} className="p-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors" aria-label="إرسال">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+                     <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="إرفاق ملف">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" /></svg>
                     </button>
                 </div>
             </footer>
         </div>
 
-        {/* Modals */}
+        {/* Panels */}
+        {isProfilePanelOpen && <ProfileSettingsPanel username={username} onClose={() => setIsProfilePanelOpen(false)} onUsernameChangeSuccess={handleProfileUpdate} onAccountDeleted={handleLogout} onAvatarUpdate={() => setAvatar(profileService.getProfilePicture(username))} />}
         {isUserPanelOpen && <UserManagementPanel onClose={() => setIsUserPanelOpen(false)} onUserDeleted={handleUserDeleted} />}
-        {isProfilePanelOpen && (
-            <ProfileSettingsPanel 
-                username={username} 
-                onClose={() => setIsProfilePanelOpen(false)}
-                onUsernameChangeSuccess={handleProfileUpdate}
-                onAccountDeleted={onLogout}
-                onAvatarUpdate={() => setAvatar(profileService.getProfilePicture(username))}
-            />
-        )}
         {isUserListOpen && <UserListPanel currentUser={username} onClose={() => setIsUserListOpen(false)} onSelectChat={setCurrentChat} />}
-
-
+        
+        {/* Media Viewer */}
         {viewingMedia && (
-            <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4" onClick={() => setViewingMedia(null)}>
-                <div className="max-w-4xl max-h-[90vh] relative">
-                     <button onClick={() => setViewingMedia(null)} className="absolute -top-10 right-0 text-white text-2xl z-10">&times;</button>
+            <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4" onClick={() => setViewingMedia(null)}>
+                <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => setViewingMedia(null)} className="absolute -top-10 right-0 text-white text-3xl z-10">&times;</button>
                      {viewingMedia.type === 'image' ? (
                         <img src={viewingMedia.url} alt={viewingMedia.name} className="max-w-full max-h-[90vh] object-contain" />
-                     ) : (
+                    ) : (
                         <video src={viewingMedia.url} controls autoPlay className="max-w-full max-h-[90vh]" />
-                     )}
+                    )}
+                    <a href={viewingMedia.url} download={viewingMedia.name} className="absolute bottom-2 right-2 bg-slate-700 text-white py-1 px-3 rounded-md text-sm hover:bg-slate-600">
+                        تنزيل
+                    </a>
                 </div>
             </div>
         )}

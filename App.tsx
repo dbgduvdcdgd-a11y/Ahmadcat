@@ -27,7 +27,7 @@ const App: React.FC = () => {
         const currentMessages: Message[] = JSON.parse(localStorage.getItem(CHAT_MESSAGES_KEY) || '[]');
         const systemMessage: Message = {
             id: Date.now().toString(),
-            text: `${trimmedName} انضم إلى الدردشة`,
+            text: `انضم ${trimmedName} إلى الدردشة`,
             sender: 'System'
         };
         const updatedMessages = [...currentMessages, systemMessage];
@@ -52,7 +52,7 @@ const App: React.FC = () => {
         const currentMessages: Message[] = JSON.parse(localStorage.getItem(CHAT_MESSAGES_KEY) || '[]');
         const systemMessage: Message = {
             id: Date.now().toString(),
-            text: `${username} غادر الدردشة`,
+            text: `غادر ${username} الدردشة`,
             sender: 'System'
         };
         const updatedMessages = [...currentMessages, systemMessage];
