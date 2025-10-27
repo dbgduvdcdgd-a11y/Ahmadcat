@@ -63,12 +63,11 @@ export const registerUser = (username: string, password: string, referralCode: s
         return { success: false, message: 'اسم المستخدم وكلمة المرور ورمز الإحالة مطلوبان.' };
     }
 
-    const codes = getStoredReferralCodes();
     const trimmedCode = referralCode.trim();
-    const MASTER_CODE = '111111'; // Master code for multi-device registration
 
-    if (!codes.includes(trimmedCode) && trimmedCode !== MASTER_CODE) {
-        return { success: false, message: 'رمز الإحالة غير صالح أو تم استخدامه.' };
+    // New validation: any 6-digit code is valid. This allows codes generated on one device to be used on another.
+    if (!/^\d{6}$/.test(trimmedCode)) {
+        return { success: false, message: 'يجب أن يكون رمز الإحالة مكونًا من 6 أرقام.' };
     }
 
     const trimmedUsername = username.trim();
@@ -84,14 +83,11 @@ export const registerUser = (username: string, password: string, referralCode: s
         return { success: false, message: 'اسم المستخدم موجود بالفعل.' };
     }
 
-    // All checks passed, create user and remove code if it's not the master one
+    // All checks passed, create user.
     users[trimmedUsername] = { password };
     setStoredUsers(users);
 
-    if (trimmedCode !== MASTER_CODE) {
-        const updatedCodes = codes.filter(c => c !== trimmedCode);
-        setStoredReferralCodes(updatedCodes);
-    }
+    // No need to consume the code anymore as they are not stored in a list for validation.
 
     return { success: true, message: `تم إنشاء المستخدم ${trimmedUsername} بنجاح.` };
 };
@@ -100,13 +96,16 @@ export const registerUser = (username: string, password: string, referralCode: s
 export const generateReferralCode = (): { success: boolean; code?: string; message: string } => {
     const codes = getStoredReferralCodes();
     let newCode: string;
-    do {
-        // Generate a 6-digit code
-        newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    } while (codes.includes(newCode)); // Ensure uniqueness
+    
+    // Generate a 6-digit code
+    newCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // We still store it locally to show a history to the admin, but it's not used for validation.
+    if (!codes.includes(newCode)) {
+        codes.push(newCode);
+        setStoredReferralCodes(codes);
+    }
 
-    codes.push(newCode);
-    setStoredReferralCodes(codes);
     return { success: true, code: newCode, message: `تم إنشاء رمز الإحالة الجديد: ${newCode}` };
 };
 
