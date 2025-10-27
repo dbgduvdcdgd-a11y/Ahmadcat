@@ -5,6 +5,7 @@ import type { Message } from './types';
 import { initializeAdmin, login } from './services/authService';
 
 const CHAT_MESSAGES_KEY = 'group-chat-messages';
+const REMEMBERED_USER_KEY = 'rememberedUser';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -14,7 +15,7 @@ const App: React.FC = () => {
     initializeAdmin();
   }, []);
 
-  const handleLogin = useCallback(async (name: string, pass: string): Promise<boolean> => {
+  const handleLogin = useCallback(async (name: string, pass: string, rememberMe: boolean): Promise<boolean> => {
     // Add a 2-second delay
     await new Promise(resolve => setTimeout(resolve, 2000));
       
@@ -22,6 +23,12 @@ const App: React.FC = () => {
     const success = login(trimmedName, pass);
 
     if (success) {
+      if (rememberMe) {
+        localStorage.setItem(REMEMBERED_USER_KEY, trimmedName);
+      } else {
+        localStorage.removeItem(REMEMBERED_USER_KEY);
+      }
+      
       // Add a 'joined' message to localStorage to notify other users
       try {
         const currentMessages: Message[] = JSON.parse(localStorage.getItem(CHAT_MESSAGES_KEY) || '[]');

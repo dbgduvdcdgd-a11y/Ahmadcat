@@ -1,20 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+const REMEMBERED_USER_KEY = 'rememberedUser';
 
 interface LoginScreenProps {
-  onLogin: (username: string, password: string) => Promise<boolean>;
+  onLogin: (username: string, password: string, rememberMe: boolean) => Promise<boolean>;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const rememberedUser = localStorage.getItem(REMEMBERED_USER_KEY);
+    if (rememberedUser) {
+      setUsername(rememberedUser);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const success = await onLogin(username, password);
+    const success = await onLogin(username, password, rememberMe);
     if (!success) {
       setError('اسم المستخدم أو كلمة المرور غير صحيحة.');
       setLoading(false);
@@ -62,6 +73,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
             />
+          </div>
+          <div className="flex items-center">
+            <input
+              id="remember-me"
+              name="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={loading}
+              className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+            />
+            <label htmlFor="remember-me" className="mr-2 block text-sm text-slate-300 select-none cursor-pointer">
+              تذكرني
+            </label>
           </div>
           <div>
             <button

@@ -45,6 +45,10 @@ const getMessageSnippet = (message: Message): string => {
         return message.file.name;
     }
     if (message.sticker) return 'ملصق';
+    if (message.callInfo) {
+        if (message.callInfo.type.includes('missed')) return 'مكالمة فائتة';
+        return 'مكالمة';
+    }
     if (message.reactions && Object.keys(message.reactions).length > 0) return 'تفاعل';
     return 'رسالة';
 };
@@ -555,12 +559,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
   
   // --- Call Feature Functions ---
 
-    const startCall = async (type: 'video' | 'audio') => {
-        if (currentChat.type === 'group') {
-            alert('ميزة المكالمات الجماعية غير مدعومة حاليًا.');
-            return;
+    const startCall = async (type: 'video' | 'audio', targetUser: string) => {
+        if (!targetUser) {
+             alert('ميزة المكالمات الجماعية غير مدعومة حاليًا.');
+             return;
         }
-        const targetUser = currentChat.with;
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -584,6 +587,24 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
     const endCall = () => {
         localStream?.getTracks().forEach(track => track.stop());
         setLocalStream(null);
+        
+        if (callInfo && currentChat.type === 'private') {
+            const isMissed = callTimer < 2;
+            const message: Message = {
+                id: Date.now().toString(),
+                sender: 'System',
+                callInfo: {
+                    caller: username,
+                    receiver: currentChat.with,
+                    duration: callTimer,
+                    type: callInfo.type === 'video' 
+                        ? (isMissed ? 'missed-video' : 'ended-video')
+                        : (isMissed ? 'missed-audio' : 'ended-audio'),
+                }
+            };
+            addNewMessage(message);
+        }
+
         setCallInfo(null);
         if (callTimerIntervalRef.current) {
             clearInterval(callTimerIntervalRef.current);
@@ -656,12 +677,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             <header className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0">
                 {renderChatHeader()}
                 <div className="flex items-center gap-2">
-                    <button onClick={() => startCall('audio')} className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة صوتية">
+                    <button 
+                        onClick={() => currentChat.type === 'private' && startCall('audio', currentChat.with)} 
+                        disabled={currentChat.type !== 'private'}
+                        className="p-2 rounded-full hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                        aria-label="مكالمة صوتية">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                         </svg>
                     </button>
-                    <button onClick={() => startCall('video')} className="p-2 rounded-full hover:bg-slate-700 transition-colors" aria-label="مكالمة فيديو">
+                    <button 
+                        onClick={() => currentChat.type === 'private' && startCall('video', currentChat.with)} 
+                        disabled={currentChat.type !== 'private'}
+                        className="p-2 rounded-full hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                        aria-label="مكالمة فيديو">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 001.553.832l3-2a1 1 0 000-1.664l-3-2z" />
                         </svg>
@@ -670,12 +699,55 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
             </header>
 
             <main className="flex-1 overflow-y-auto p-4 space-y-4" onClick={() => { setPopoverMessageId(null); setIsMainMenuOpen(false); }}>
-                {messages.map((msg) => (
-                    msg.sender === 'System' ? (
-                        <div key={msg.id} className="text-center text-sm text-slate-400 py-2">
-                           {msg.text}
-                        </div>
-                    ) : (
+                {messages.map((msg) => {
+                    if (msg.sender === 'System') {
+                        if (msg.callInfo) {
+                            const call = msg.callInfo;
+                            const isMissed = call.type.includes('missed');
+                            const isVideo = call.type.includes('video');
+                            const isCaller = call.caller === username;
+                            const otherUser = isCaller ? call.receiver : call.caller;
+                            const callTypeName = isVideo ? 'فيديو' : 'صوتية';
+                            
+                            let text;
+                            if (isMissed) {
+                                text = isCaller ? `مكالمة ${callTypeName} إلى ${otherUser}` : `مكالمة ${callTypeName} فائتة من ${otherUser}`;
+                            } else {
+                                text = `مكالمة ${callTypeName} • ${formatTime(call.duration)}`;
+                            }
+
+                            return (
+                                <div key={msg.id} className="flex justify-center items-center my-2">
+                                    <div className="flex items-center gap-3 text-sm text-slate-400 p-2 rounded-lg bg-slate-900/50">
+                                        {isVideo ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isMissed ? 'text-red-400' : 'text-slate-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                                               <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 001.553.832l3-2a1 1 0 000-1.664l-3-2z" />
+                                            </svg>
+                                        ) : (
+                                             <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isMissed ? 'text-red-400' : 'text-slate-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                                             </svg>
+                                        )}
+                                        <span className={isMissed ? 'font-semibold text-slate-300' : ''}>{text}</span>
+                                        {isMissed && !isCaller && (
+                                            <button 
+                                                onClick={() => startCall(isVideo ? 'video' : 'audio', otherUser)}
+                                                className="text-indigo-400 hover:text-indigo-300 font-bold text-xs px-2 py-1 rounded hover:bg-slate-600 transition-colors"
+                                            >
+                                                إعادة الاتصال
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        }
+                        return (
+                            <div key={msg.id} className="text-center text-sm text-slate-400 py-2">
+                               {msg.text}
+                            </div>
+                        );
+                    }
+                    return (
                         <div key={msg.id}
                             ref={node => { if (node) messageRefs.current.set(msg.id, node); else messageRefs.current.delete(msg.id); }}
                             className={`flex items-start gap-3 ${msg.sender === username ? 'flex-row-reverse' : ''}`}
@@ -751,7 +823,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ username, onLogout, onUsernameU
                             </div>
                         </div>
                     )
-                ))}
+                })}
                 <div ref={messagesEndRef} />
             </main>
             
